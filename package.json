@@ -8,10 +8,11 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace @home-dashboard/web",
-    "build": "npm run build --workspace @home-dashboard/web",
+    "dev:worker": "npm run dev --workspace @home-dashboard/worker",
+    "build": "npm run build --workspaces --if-present",
     "start": "npm run start --workspace @home-dashboard/web",
     "lint": "npm run lint --workspace @home-dashboard/web",
-    "typecheck": "npm run typecheck --workspace @home-dashboard/web"
+    "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
