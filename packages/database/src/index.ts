@@ -9,3 +9,12 @@ export {
   saveMarstekReading,
   syncMarstekDevices,
 } from "./marstek";
+export {
+  defaultFreelancehuntSkillIds,
+  getFreelancehuntSettings,
+  listRecentFreelancehuntProjects,
+  saveFreelancehuntProjects,
+  saveFreelancehuntThreads,
+  updateFreelancehuntSettings,
+} from "./freelancehunt";
+export type { FreelancehuntSettingsInput, StoredFreelancehuntProject, StoredFreelancehuntThread } from "./freelancehunt";

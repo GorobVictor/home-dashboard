@@ -1,8 +1,9 @@
 import "dotenv/config";
 import cron from "node-cron";
-import { disconnectDatabase, pruneMarstekMeasurements, syncMarstekDevices } from "@home-dashboard/database";
+import { disconnectDatabase, getFreelancehuntSettings, pruneMarstekMeasurements, syncMarstekDevices } from "@home-dashboard/database";
 import { parseMarstekDevices, type MarstekDeviceConfig } from "@home-dashboard/integrations";
 import { pollMarstekDevices } from "./jobs/marstek-poll";
+import { pollFreelancehunt } from "./jobs/freelancehunt-poll";
 
 const devices = parseMarstekDevices(process.env.MARSTEK_DEVICES);
 let pruning = false;
@@ -10,6 +11,8 @@ let stopping = false;
 const pollTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const pollingPromises = new Map<string, Promise<void>>();
 let pruningPromise: Promise<void> | undefined;
+let freelancehuntTimer: ReturnType<typeof setTimeout> | undefined;
+let freelancehuntPromise: Promise<void> | undefined;
 
 function schedulePolling(device: MarstekDeviceConfig): void {
   if (stopping) return;
@@ -40,6 +43,34 @@ async function pruneOldMeasurements(): Promise<void> {
   }
 }
 
+function scheduleFreelancehuntPolling(delayMs = 1_000): void {
+  if (stopping) return;
+  freelancehuntTimer = setTimeout(async () => {
+    const startedAt = Date.now();
+    freelancehuntPromise = (async () => {
+      try {
+      const settings = await getFreelancehuntSettings();
+      await pollFreelancehunt({
+        enabled: settings.enabled,
+        projectPollingEnabled: settings.projectPollingEnabled,
+        messagePollingEnabled: settings.messagePollingEnabled,
+        telegramEnabled: settings.telegramEnabled,
+        pollIntervalSeconds: settings.pollIntervalSeconds,
+        skillIds: settings.skillIds as number[],
+        projectsInitialized: settings.projectsInitialized,
+        messagesInitialized: settings.messagesInitialized,
+      });
+      const nextDelay = Math.max(5_000, settings.pollIntervalSeconds * 1_000 - (Date.now() - startedAt));
+      scheduleFreelancehuntPolling(nextDelay);
+      } catch (error) {
+        console.error("freelancehunt_poll_failed", { error: error instanceof Error ? error.message : "unknown_error" });
+        scheduleFreelancehuntPolling(60_000);
+      }
+    })();
+    await freelancehuntPromise;
+  }, delayMs);
+}
+
 async function main(): Promise<void> {
   await syncMarstekDevices(devices);
   console.info("worker_started", { marstekDevices: devices.length, pollingSeconds: 1 });
@@ -47,15 +78,17 @@ async function main(): Promise<void> {
     if (!pruning) pruningPromise = pruneOldMeasurements();
   }, { timezone: "UTC" });
   for (const device of devices) schedulePolling(device);
+  scheduleFreelancehuntPolling();
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.once(signal, async () => {
       if (stopping) return;
       stopping = true;
       for (const timer of pollTimers.values()) clearTimeout(timer);
+      if (freelancehuntTimer) clearTimeout(freelancehuntTimer);
       retentionTask.stop();
       console.info("worker_stopping", { signal });
-      await Promise.allSettled([...pollingPromises.values(), pruningPromise]);
+      await Promise.allSettled([...pollingPromises.values(), pruningPromise, freelancehuntPromise]);
       await disconnectDatabase();
       process.exit(0);
     });

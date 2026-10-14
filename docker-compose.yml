@@ -27,6 +27,7 @@ services:
       DATABASE_URL: postgresql://home_dashboard:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/home_dashboard
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?Set AUTH_JWT_SECRET in .env}
       HOSTNAME: 0.0.0.0
+      FREELANCEHUNT_API_TOKEN: ${FREELANCEHUNT_API_TOKEN:-}
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"
     depends_on:
@@ -81,6 +82,9 @@ services:
     environment:
       DATABASE_URL: postgresql://home_dashboard:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/home_dashboard
       MARSTEK_DEVICES: ${MARSTEK_DEVICES:-[]}
+      FREELANCEHUNT_API_TOKEN: ${FREELANCEHUNT_API_TOKEN:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     depends_on:
       postgres:
         condition: service_healthy

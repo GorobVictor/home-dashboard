@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Activity, BatteryCharging, BatteryFull, BatteryWarning, Thermometer, Zap } from "lucide-react";
+import { listRecentFreelancehuntProjects } from "@home-dashboard/database";
+import { Activity, BatteryCharging, BatteryFull, BatteryWarning, Settings, Thermometer, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -35,6 +36,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const selected = dashboard.devices.find((device) => device.id === dashboard.selectedDeviceId);
   const latest = dashboard.selected?.latest;
   const chartProps = { points: dashboard.points, energy: dashboard.energy, hours };
+  const freelancehuntProjects = await listRecentFreelancehuntProjects(8);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-8 lg:py-10">
@@ -45,7 +47,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">Energy overview</h1>
           <p className="mt-2 text-sm text-muted-foreground">Welcome, {user.firstName}. Your batteries at a glance.</p>
         </div>
-        <div className="flex items-center gap-2"><RefreshButton /><LogoutButton /></div>
+        <div className="flex items-center gap-2"><RefreshButton /><Link href="/settings" className="inline-flex size-8 items-center justify-center rounded-lg border hover:bg-muted" aria-label="Settings"><Settings className="size-4" /></Link><LogoutButton /></div>
       </header>
 
       <section aria-label="Fleet summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -53,6 +55,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <SummaryCard label="Average charge" value={dashboard.overview.averageSoc === null ? "—" : `${Math.round(dashboard.overview.averageSoc)}%`} detail="Across online batteries" icon={<BatteryFull className="h-5 w-5" />} />
         <SummaryCard label="Charging now" value={watts(dashboard.overview.chargingW)} detail="Combined battery input" icon={<BatteryCharging className="h-5 w-5" />} />
         <SummaryCard label="Discharging now" value={watts(dashboard.overview.dischargingW)} detail="Combined battery output" icon={<Zap className="h-5 w-5" />} />
+      </section>
+
+      <section aria-label="Freelancehunt projects">
+        <div className="mb-4 flex items-center justify-between gap-4"><div><h2 className="text-xl font-semibold">Freelancehunt projects</h2><p className="text-sm text-muted-foreground">Recently discovered projects matching your filters</p></div><Link className="text-sm font-medium text-primary hover:underline" href="/settings">Configure</Link></div>
+        {freelancehuntProjects.length === 0 ? <Card className="border-dashed"><CardContent className="py-5 text-sm text-muted-foreground">No projects saved yet. Enable Freelancehunt monitoring in Settings to begin.</CardContent></Card> : <div className="grid gap-3 md:grid-cols-2">
+          {freelancehuntProjects.map((project) => <a key={project.id} href={project.url} target="_blank" rel="noreferrer" className="rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"><Card className="h-full transition-colors hover:border-primary/40"><CardHeader className="pb-2"><CardTitle className="line-clamp-2 text-base">{project.name}</CardTitle><CardDescription>{project.budgetAmount === null ? "Budget not specified" : `${project.budgetAmount.toLocaleString()} ${project.budgetCurrency ?? ""}`}</CardDescription></CardHeader><CardContent><p className="line-clamp-2 text-sm text-muted-foreground">{project.description ?? "No description available."}</p><p className="mt-3 text-xs text-muted-foreground">{project.skills.join(", ") || "No skills listed"}</p></CardContent></Card></a>)}
+        </div>}
       </section>
 
       {dashboard.devices.length === 0 ? (

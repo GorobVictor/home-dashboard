@@ -68,3 +68,50 @@ model MarstekMeasurement {
   @@index([sampledAt])
   @@map("marstek_measurements")
 }
+
+model FreelancehuntSettings {
+  id                       String   @id @default("default") @db.VarChar(32)
+  enabled                  Boolean  @default(false)
+  projectPollingEnabled    Boolean  @default(true) @map("project_polling_enabled")
+  messagePollingEnabled    Boolean  @default(true) @map("message_polling_enabled")
+  telegramEnabled          Boolean  @default(true) @map("telegram_enabled")
+  pollIntervalSeconds      Int      @default(60) @map("poll_interval_seconds")
+  skillIds                 Json     @default("[]") @map("skill_ids") @db.JsonB
+  projectsInitialized      Boolean  @default(false) @map("projects_initialized")
+  messagesInitialized      Boolean  @default(false) @map("messages_initialized")
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("freelancehunt_settings")
+}
+
+model FreelancehuntProject {
+  id          BigInt   @id @default(autoincrement())
+  externalId  Int      @unique @map("external_id")
+  name        String   @db.VarChar(500)
+  description String?  @db.Text
+  url         String   @db.VarChar(2048)
+  budgetAmount Float?  @map("budget_amount")
+  budgetCurrency String? @map("budget_currency") @db.VarChar(8)
+  skills      Json     @default("[]") @db.JsonB
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
+  discoveredAt DateTime @default(now()) @map("discovered_at") @db.Timestamptz(6)
+
+  @@index([discoveredAt(sort: Desc)])
+  @@map("freelancehunt_projects")
+}
+
+model FreelancehuntThread {
+  id            BigInt   @id @default(autoincrement())
+  externalId    Int      @unique @map("external_id")
+  subject       String   @db.VarChar(500)
+  url           String   @db.VarChar(2048)
+  lastPostedAt  DateTime? @map("last_posted_at") @db.Timestamptz(6)
+  messagesCount Int      @default(0) @map("messages_count")
+  isUnread      Boolean  @default(false) @map("is_unread")
+  discoveredAt  DateTime @default(now()) @map("discovered_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([isUnread, lastPostedAt(sort: Desc)])
+  @@map("freelancehunt_threads")
+}
