@@ -9,10 +9,10 @@ export async function GET(request: NextRequest) {
     }
     const hoursValue = request.nextUrl.searchParams.get("hours") ?? "24";
     const deviceId = request.nextUrl.searchParams.get("device") ?? undefined;
-    if ((hoursValue !== "24" && hoursValue !== "168") || (deviceId && !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(deviceId))) {
+    if (!new Set(["1", "6", "24", "168", "720"]).has(hoursValue) || (deviceId && !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(deviceId))) {
       return NextResponse.json({ error: "invalid_input" }, { status: 400 });
     }
-    return NextResponse.json(await getMarstekDashboard(deviceId, Number(hoursValue) as 24 | 168));
+    return NextResponse.json(await getMarstekDashboard(deviceId, Number(hoursValue) as 1 | 6 | 24 | 168 | 720));
   } catch (error) {
     console.error("Marstek overview failed", error instanceof Error ? error.name : "unknown_error");
     return NextResponse.json({ error: "internal_error" }, { status: 500 });

@@ -12,9 +12,10 @@ export {
 export {
   defaultFreelancehuntSkillIds,
   getFreelancehuntSettings,
+  listFreelancehuntProjects,
   listRecentFreelancehuntProjects,
   saveFreelancehuntProjects,
   saveFreelancehuntThreads,
   updateFreelancehuntSettings,
 } from "./freelancehunt";
-export type { FreelancehuntSettingsInput, StoredFreelancehuntProject, StoredFreelancehuntThread } from "./freelancehunt";
+export type { FreelancehuntProjectPage, FreelancehuntSettingsInput, StoredFreelancehuntProject, StoredFreelancehuntThread } from "./freelancehunt";

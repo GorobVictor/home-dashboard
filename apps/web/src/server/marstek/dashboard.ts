@@ -1,8 +1,8 @@
 import { listMarstekDevices, listMarstekMeasurementBuckets } from "@home-dashboard/database";
 
-export type DashboardRange = 24 | 168;
+export type DashboardRange = 1 | 6 | 24 | 168 | 720;
 
-export async function getMarstekDashboard(deviceId: string | undefined, hours: DashboardRange) {
+export async function getMarstekDashboard(deviceId: string | undefined, hours: DashboardRange, from?: Date, to?: Date) {
   const devices = await listMarstekDevices();
   const selected = devices.find((device) => device.id === deviceId) ?? devices.find((device) => device.enabled) ?? devices[0];
   const now = Date.now();
@@ -31,8 +31,11 @@ export async function getMarstekDashboard(deviceId: string | undefined, hours: D
   });
   const activeCards = deviceCards.filter((device) => device.online);
   const socCards = activeCards.filter((device) => device.socPercent !== null);
+  const rangeStart = from ?? new Date(now - hours * 3_600_000);
+  const rangeEnd = to ?? new Date(now);
+  const rangeHours = Math.max(1, Math.ceil((rangeEnd.getTime() - rangeStart.getTime()) / 3_600_000));
   const measurements = selected
-    ? await listMarstekMeasurementBuckets(selected.id, new Date(now - hours * 3_600_000), hours === 24 ? 60 : 600)
+    ? await listMarstekMeasurementBuckets(selected.id, rangeStart, rangeHours <= 24 ? 60 : 600)
     : [];
   const step = Math.max(1, Math.ceil(measurements.length / 400));
   const points = measurements
@@ -45,7 +48,7 @@ export async function getMarstekDashboard(deviceId: string | undefined, hours: D
       grid: item.gridPowerW,
       pv: item.pvPowerW,
     }));
-  const bucketMs = hours === 24 ? 3_600_000 : 24 * 3_600_000;
+  const bucketMs = rangeHours <= 24 ? 3_600_000 : 24 * 3_600_000;
   const buckets = new Map<number, { chargeWh: number; dischargeWh: number }>();
   for (const item of measurements) {
     const key = Math.floor(item.sampledAt.getTime() / bucketMs) * bucketMs;
@@ -61,7 +64,9 @@ export async function getMarstekDashboard(deviceId: string | undefined, hours: D
   }));
   const latest = selected?.measurements[0];
   return {
-    hours,
+    hours: rangeHours,
+    rangeStart: rangeStart.toISOString(),
+    rangeEnd: rangeEnd.toISOString(),
     devices: deviceCards,
     selectedDeviceId: selected?.id ?? null,
     overview: {
@@ -81,6 +86,7 @@ export async function getMarstekDashboard(deviceId: string | undefined, hours: D
       latest: latest ? {
         socPercent: latest.socPercent,
         batteryPowerW: latest.batteryPowerW,
+        dischargePowerW: latest.dischargePowerW,
         batteryTemperatureC: latest.batteryTemperatureC,
         remainingCapacityWh: latest.remainingCapacityWh,
         ratedCapacityWh: latest.ratedCapacityWh,
@@ -93,6 +99,9 @@ export async function getMarstekDashboard(deviceId: string | undefined, hours: D
         dischargeAllowed: latest.dischargeAllowed,
         gridInputTotalWh: latest.gridInputTotalWh,
         gridOutputTotalWh: latest.gridOutputTotalWh,
+        pvTotalWh: latest.pvTotalWh,
+        loadTotalWh: latest.loadTotalWh,
+        meterPowerW: latest.meterPowerW,
         powerSource: latest.powerSource,
       } : null,
     } : null,

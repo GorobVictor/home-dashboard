@@ -21,6 +21,13 @@ export interface StoredFreelancehuntThread extends FreelancehuntThread {
   discoveredAt: Date;
 }
 
+export interface FreelancehuntProjectPage {
+  projects: StoredFreelancehuntProject[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export async function getFreelancehuntSettings() {
   return getDatabase().freelancehuntSettings.upsert({
     where: { id: settingsId },
@@ -131,4 +138,21 @@ export async function listRecentFreelancehuntProjects(limit = 20): Promise<Store
     budgetAmount: row.budgetAmount, budgetCurrency: row.budgetCurrency,
     skills: row.skills as string[], publishedAt: row.publishedAt, discoveredAt: row.discoveredAt,
   }));
+}
+
+export async function listFreelancehuntProjects(page = 1, pageSize = 12): Promise<FreelancehuntProjectPage> {
+  const safePage = Math.max(1, Math.floor(page));
+  const safePageSize = Math.min(50, Math.max(1, Math.floor(pageSize)));
+  const db = getDatabase();
+  const [rows, total] = await Promise.all([
+    db.freelancehuntProject.findMany({ orderBy: { discoveredAt: "desc" }, skip: (safePage - 1) * safePageSize, take: safePageSize }),
+    db.freelancehuntProject.count(),
+  ]);
+  return {
+    projects: rows.map((row) => ({
+      id: row.externalId, name: row.name, description: row.description, url: row.url,
+      budgetAmount: row.budgetAmount, budgetCurrency: row.budgetCurrency,
+      skills: row.skills as string[], publishedAt: row.publishedAt, discoveredAt: row.discoveredAt,
+    })), total, page: safePage, pageSize: safePageSize,
+  };
 }

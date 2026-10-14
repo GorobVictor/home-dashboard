@@ -24,7 +24,7 @@ const energyConfig = {
 
 function timeLabel(value: string, hours: number) {
   const date = new Date(value);
-  return hours === 24
+  return hours <= 24
     ? date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
     : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
@@ -77,7 +77,7 @@ export function MarstekCharts({ points, energy, hours }: Pick<Dashboard, "points
       <section className="rounded-xl border bg-card p-5 shadow-sm xl:col-span-2" aria-label="Charged and discharged energy">
         <div className="mb-4">
           <h3 className="font-semibold">Energy moved</h3>
-          <p className="text-sm text-muted-foreground">Estimated from the sampled power · Wh per {hours === 24 ? "hour" : "day"}</p>
+          <p className="text-sm text-muted-foreground">Estimated from the sampled power · Wh per {hours <= 24 ? "hour" : "day"}</p>
         </div>
         <ChartContainer config={energyConfig} className="h-64 w-full aspect-auto" role="img" aria-label="Charged and discharged energy by time period">
           <BarChart data={energy} margin={{ left: -12, right: 8 }}>
