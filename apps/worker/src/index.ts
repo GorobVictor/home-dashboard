@@ -61,7 +61,10 @@ async function main(): Promise<void> {
 }
 
 main().catch(async (error) => {
-  console.error("worker_start_failed", { error: error instanceof Error ? error.name : "unknown_error" });
+  const code = error !== null && typeof error === "object" && "code" in error && typeof error.code === "string"
+    ? error.code
+    : undefined;
+  console.error("worker_start_failed", { error: error instanceof Error ? error.name : "unknown_error", code });
   await disconnectDatabase();
   process.exitCode = 1;
 });
