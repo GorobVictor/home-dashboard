@@ -19,3 +19,52 @@ model User {
 
   @@map("users")
 }
+
+model MarstekDevice {
+  id          String               @id @db.VarChar(64)
+  name        String               @db.VarChar(100)
+  host        String               @db.VarChar(255)
+  port        Int
+  enabled     Boolean              @default(true)
+  lastSeenAt  DateTime?            @map("last_seen_at") @db.Timestamptz(6)
+  lastError   String?              @map("last_error") @db.VarChar(100)
+  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  measurements MarstekMeasurement[]
+
+  @@map("marstek_devices")
+}
+
+model MarstekMeasurement {
+  id                    BigInt        @id @default(autoincrement())
+  deviceId              String        @map("device_id") @db.VarChar(64)
+  device                MarstekDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  sampledAt             DateTime      @map("sampled_at") @db.Timestamptz(6)
+  socPercent            Float?        @map("soc_percent")
+  batteryPowerW         Float?        @map("battery_power_w")
+  powerSource           String        @map("power_source") @db.VarChar(16)
+  chargePowerW          Float         @default(0) @map("charge_power_w")
+  dischargePowerW       Float         @default(0) @map("discharge_power_w")
+  chargeEnergyWh        Float         @default(0) @map("charge_energy_wh")
+  dischargeEnergyWh     Float         @default(0) @map("discharge_energy_wh")
+  flow                  String        @db.VarChar(16)
+  gridPowerW            Float?        @map("grid_power_w")
+  offgridPowerW         Float?        @map("offgrid_power_w")
+  pvPowerW              Float?        @map("pv_power_w")
+  batteryTemperatureC   Float?        @map("battery_temperature_c")
+  remainingCapacityWh   Float?        @map("remaining_capacity_wh")
+  ratedCapacityWh       Float?        @map("rated_capacity_wh")
+  gridInputTotalWh      Float?        @map("grid_input_total_wh")
+  gridOutputTotalWh     Float?        @map("grid_output_total_wh")
+  pvTotalWh             Float?        @map("pv_total_wh")
+  loadTotalWh           Float?        @map("load_total_wh")
+  chargeAllowed         Boolean?      @map("charge_allowed")
+  dischargeAllowed      Boolean?      @map("discharge_allowed")
+  mode                  String?       @db.VarChar(32)
+  ctConnected           Boolean?      @map("ct_connected")
+  meterPowerW           Float?        @map("meter_power_w")
+
+  @@index([deviceId, sampledAt(sort: Desc)])
+  @@index([sampledAt])
+  @@map("marstek_measurements")
+}

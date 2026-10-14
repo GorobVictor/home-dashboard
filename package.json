@@ -12,11 +12,11 @@
     "build": "npm run build --workspaces --if-present",
     "start": "npm run start --workspace @home-dashboard/web",
     "lint": "npm run lint --workspace @home-dashboard/web",
-    "test": "cd apps/web && node --import tsx --test src/server/auth/*.test.ts",
+    "test": "TSX_TSCONFIG_PATH=apps/web/tsconfig.json node --import tsx --test apps/web/src/server/auth/*.test.ts packages/integrations/src/*.test.ts apps/worker/src/jobs/*.test.ts",
     "typecheck": "npm run db:generate && npm run typecheck --workspaces --if-present",
     "db:generate": "prisma generate --config packages/database/prisma.config.ts",
     "db:migrate": "prisma migrate deploy --config packages/database/prisma.config.ts",
-    "db:create-user": "tsx apps/web/scripts/create-user.ts"
+    "db:create-user": "node --import tsx apps/web/scripts/create-user.ts"
   },
   "dependencies": {
     "dotenv": "^18.0.8",

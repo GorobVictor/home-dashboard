@@ -68,6 +68,7 @@ services:
       dockerfile: docker/worker.Dockerfile
     environment:
       DATABASE_URL: postgresql://home_dashboard:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/home_dashboard
+      MARSTEK_DEVICES: ${MARSTEK_DEVICES:-[]}
     depends_on:
       postgres:
         condition: service_healthy

@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
-  transpilePackages: ["@home-dashboard/database"],
+  transpilePackages: ["@home-dashboard/database", "@home-dashboard/integrations"],
   reactCompiler: true,
   turbopack: {
     rules: {
