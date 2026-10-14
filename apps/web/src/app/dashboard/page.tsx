@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { currentUser } from "@/server/auth/session";
 import { getMarstekDashboard, type DashboardRange } from "@/server/marstek/dashboard";
 import { LogoutButton } from "./logout-button";
+import { DashboardLiveUpdates } from "./live-updates";
 import { MarstekCharts } from "./marstek-charts";
 import { RefreshButton } from "./refresh-button";
 
@@ -37,6 +38,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-8 lg:py-10">
+      <DashboardLiveUpdates />
       <header className="flex flex-wrap items-center justify-between gap-5">
         <div>
           <p className="text-sm font-medium uppercase tracking-[0.18em] text-muted-foreground">Home Dashboard</p>

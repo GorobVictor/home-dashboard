@@ -63,6 +63,7 @@ export async function saveMarstekReading(deviceId: string, reading: MarstekReadi
       where: { id: deviceId },
       data: { lastSeenAt: reading.sampledAt, lastError: null },
     }),
+    db.$executeRaw`SELECT pg_notify('home_dashboard_events', ${JSON.stringify({ type: "marstek.measurement.saved", deviceId, sampledAt: reading.sampledAt.toISOString() })})`,
   ]);
 }
 

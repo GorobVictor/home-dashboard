@@ -12,6 +12,7 @@
   "dependencies": {
     "@home-dashboard/database": "0.1.0",
     "@home-dashboard/integrations": "0.1.0",
-    "node-cron": "^4.6.0"
+    "node-cron": "^4.6.0",
+    "tsx": "^4.23.15"
   }
 }
