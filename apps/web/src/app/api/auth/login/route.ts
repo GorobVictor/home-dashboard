@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     response.cookies.set(
       sessionCookieName,
       token,
-      sessionCookieOptions(request.nextUrl.protocol === "https:"),
+      sessionCookieOptions((request.headers.get("x-forwarded-proto") ?? request.nextUrl.protocol).startsWith("https")),
     );
     return response;
   } catch (error) {

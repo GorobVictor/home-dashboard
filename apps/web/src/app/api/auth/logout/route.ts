@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
 
   const response = NextResponse.json({ ok: true });
   response.cookies.set(sessionCookieName, "", {
-    ...sessionCookieOptions(request.nextUrl.protocol === "https:"),
+    ...sessionCookieOptions((request.headers.get("x-forwarded-proto") ?? request.nextUrl.protocol).startsWith("https")),
     maxAge: 0,
   });
   return response;

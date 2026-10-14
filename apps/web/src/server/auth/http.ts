@@ -3,7 +3,15 @@ import { AuthError } from "./service";
 
 export function sameOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
-  return !origin || origin === request.nextUrl.origin;
+  if (!origin) return true;
+  try {
+    const parsed = new URL(origin);
+    const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? request.nextUrl.host;
+    const protocol = request.headers.get("x-forwarded-proto")?.split(",")[0] ?? request.nextUrl.protocol.slice(0, -1);
+    return parsed.host === host && parsed.protocol === `${protocol}:`;
+  } catch {
+    return false;
+  }
 }
 
 export async function jsonBody(request: NextRequest): Promise<unknown> {

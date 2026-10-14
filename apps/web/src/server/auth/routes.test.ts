@@ -3,6 +3,15 @@ import { test } from "node:test";
 import { NextRequest } from "next/server";
 import { POST as login } from "../../app/api/auth/login/route";
 import { POST as logout } from "../../app/api/auth/logout/route";
+import { sameOrigin } from "./http";
+
+test("same-origin requests behind a reverse proxy use the public host and protocol", () => {
+  const request = new NextRequest("http://0.0.0.0:3000/api/auth/login", {
+    method: "POST",
+    headers: { origin: "https://dashboard.example", host: "127.0.0.1:3000", "x-forwarded-host": "dashboard.example", "x-forwarded-proto": "https" },
+  });
+  assert.equal(sameOrigin(request), true);
+});
 
 test("login rejects cross-origin requests before reading credentials", async () => {
   const response = await login(new NextRequest("http://localhost:3000/api/auth/login", {
