@@ -29,12 +29,11 @@ Copy `.env.example` to `.env`. Set `POSTGRES_PASSWORD`, `PGADMIN_DEFAULT_PASSWOR
 
 ```bash
 cp .env.example .env
-docker compose build web worker
+docker compose up -d --build
 docker compose run --rm setup
-docker compose up -d
 ```
 
-The `setup` command deliberately applies committed migrations and creates the initial user. It does not reset an existing user's password. To add another user, set different `INITIAL_USER_*` values and run `docker compose run --rm setup` again. Remove `INITIAL_USER_PASSWORD` from `.env` after use. For later schema deployments without creating a user, run `docker compose run --rm migrate`. The underlying migration command is `npm run db:migrate` inside a container with `DATABASE_URL` set.
+Compose runs the migration service after PostgreSQL is healthy and before starting web or worker. The `setup` command creates the initial user after migrations complete. It does not reset an existing user's password. To add another user, set different `INITIAL_USER_*` values and run `docker compose run --rm setup` again. Remove `INITIAL_USER_PASSWORD` from `.env` after use. For later schema deployments without creating a user, run `docker compose run --rm migrate`. The underlying migration command is `npm run db:migrate` inside a container with `DATABASE_URL` set.
 
 The dashboard is available at [http://localhost:3000](http://localhost:3000) and pgAdmin at [http://localhost:5050](http://localhost:5050). Sign in to pgAdmin with `PGADMIN_DEFAULT_EMAIL` and `PGADMIN_DEFAULT_PASSWORD` from `.env`. Its Home Dashboard PostgreSQL connection is imported from `docker/pgadmin/servers.json`; the database password comes from the generated pgpass file. PostgreSQL has no host port and both web interfaces bind to localhost.
 
