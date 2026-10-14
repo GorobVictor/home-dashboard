@@ -77,14 +77,14 @@ export function parseMarstekDevices(value: string | undefined): MarstekDeviceCon
 }
 
 export class MarstekUdpClient {
-  constructor(private readonly timeoutMs = 2_000) {}
+  constructor(private readonly timeoutMs = 2_000, private readonly attempts = 2) {}
 
   async request(device: MarstekDeviceConfig, method: RpcMethod): Promise<RpcResult> {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    for (let attempt = 0; attempt < this.attempts; attempt += 1) {
       try {
         return await this.requestOnce(device, method);
       } catch (error) {
-        if (attempt === 1 || (error instanceof Error && error.message === "device_error")) throw error;
+        if (attempt === this.attempts - 1 || (error instanceof Error && error.message === "device_error")) throw error;
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
     }
@@ -139,6 +139,41 @@ export async function readMarstekDevice(
   const battery = await client.request(device, "Bat.GetStatus").catch(() => null);
   await pause(500);
   const modeStatus = await client.request(device, "ES.GetMode").catch(() => null);
+  return toMarstekReading(es, battery, modeStatus, new Date());
+}
+
+type CachedDetails = { battery: RpcResult | null; modeStatus: RpcResult | null; refreshedAt: number };
+
+export class MarstekPollingReader {
+  private readonly details = new Map<string, CachedDetails>();
+
+  constructor(
+    private readonly statusClient: Pick<MarstekUdpClient, "request"> = new MarstekUdpClient(800, 1),
+    private readonly detailClient: Pick<MarstekUdpClient, "request"> = new MarstekUdpClient(),
+  ) {}
+
+  async read(device: MarstekDeviceConfig): Promise<MarstekReading> {
+    const es = await this.statusClient.request(device, "ES.GetStatus");
+    const sampledAt = new Date();
+    let details = this.details.get(device.id);
+    if (!details || Date.now() - details.refreshedAt >= 60_000) {
+      // Slow optional RPCs run only once per minute; the main status RPC runs every second.
+      await pause(500);
+      const battery = await this.detailClient.request(device, "Bat.GetStatus").catch(() => null);
+      await pause(500);
+      const modeStatus = await this.detailClient.request(device, "ES.GetMode").catch(() => null);
+      details = {
+        battery: battery ?? details?.battery ?? null,
+        modeStatus: modeStatus ?? details?.modeStatus ?? null,
+        refreshedAt: Date.now(),
+      };
+      this.details.set(device.id, details);
+    }
+    return toMarstekReading(es, details.battery, details.modeStatus, sampledAt);
+  }
+}
+
+function toMarstekReading(es: RpcResult, battery: RpcResult | null, modeStatus: RpcResult | null, sampledAt: Date): MarstekReading {
   const socPercent = optionalNumber(es.bat_soc, 0, 100) ?? optionalNumber(battery?.soc, 0, 100);
   const gridPowerW = optionalNumber(es.ongrid_power, -20_000, 20_000);
   const offgridPowerW = optionalNumber(es.offgrid_power, -20_000, 20_000);
@@ -150,7 +185,7 @@ export async function readMarstekDevice(
   const flow = batteryPowerW === null ? "unknown" : batteryPowerW > 20 ? "charging" : batteryPowerW < -20 ? "discharging" : "idle";
   const mode = modeStatus?.mode;
   return {
-    sampledAt: new Date(),
+    sampledAt,
     socPercent,
     batteryPowerW,
     powerSource: reportedPower !== null ? "reported" : derivedPower !== null ? "derived" : "unavailable",

@@ -1,4 +1,4 @@
-import { listMarstekDevices, listMarstekMeasurements } from "@home-dashboard/database";
+import { listMarstekDevices, listMarstekMeasurementBuckets } from "@home-dashboard/database";
 
 export type DashboardRange = 24 | 168;
 
@@ -32,7 +32,7 @@ export async function getMarstekDashboard(deviceId: string | undefined, hours: D
   const activeCards = deviceCards.filter((device) => device.online);
   const socCards = activeCards.filter((device) => device.socPercent !== null);
   const measurements = selected
-    ? await listMarstekMeasurements(selected.id, new Date(now - hours * 3_600_000))
+    ? await listMarstekMeasurementBuckets(selected.id, new Date(now - hours * 3_600_000), hours === 24 ? 60 : 600)
     : [];
   const step = Math.max(1, Math.ceil(measurements.length / 400));
   const points = measurements

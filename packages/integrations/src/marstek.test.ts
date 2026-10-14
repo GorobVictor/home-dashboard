@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseMarstekDevices, readMarstekDevice } from "./marstek";
+import { MarstekPollingReader, parseMarstekDevices, readMarstekDevice } from "./marstek";
 
 const device = { id: "venus-e3-1", name: "Venus E3", host: "192.168.3.224", port: 30000 };
 
@@ -31,6 +31,25 @@ test("reported battery power maps to charging and preserves useful readings", as
   assert.equal(reading.pvTotalWh, 120);
   assert.equal(reading.batteryTemperatureC, 27.5);
   assert.equal(reading.ctConnected, true);
+});
+
+test("second-by-second polling reuses optional telemetry between detail reads", async () => {
+  const statusMethods: string[] = [];
+  const detailMethods: string[] = [];
+  const reader = new MarstekPollingReader(
+    { async request(_device, method) { statusMethods.push(method); return { bat_soc: 72, bat_power: -300 }; } },
+    { async request(_device, method) {
+      detailMethods.push(method);
+      return method === "Bat.GetStatus" ? { bat_temp: 28 } : { mode: "Auto" };
+    } },
+  );
+  const first = await reader.read(device);
+  const second = await reader.read(device);
+  assert.deepEqual(statusMethods, ["ES.GetStatus", "ES.GetStatus"]);
+  assert.deepEqual(detailMethods, ["Bat.GetStatus", "ES.GetMode"]);
+  assert.equal(first.batteryTemperatureC, 28);
+  assert.equal(second.batteryTemperatureC, 28);
+  assert.equal(second.mode, "Auto");
 });
 
 test("missing bat_power is derived from AC power and optional RPC failures do not erase status", async () => {

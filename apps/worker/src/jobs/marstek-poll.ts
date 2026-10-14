@@ -1,5 +1,5 @@
 import { markMarstekFailure, saveMarstekReading } from "@home-dashboard/database";
-import { readMarstekDevice } from "@home-dashboard/integrations";
+import { MarstekPollingReader } from "@home-dashboard/integrations";
 import type { MarstekDeviceConfig, MarstekReading } from "@home-dashboard/integrations";
 
 export interface PollOperations {
@@ -8,8 +8,10 @@ export interface PollOperations {
   fail(deviceId: string, reason: string): Promise<void>;
 }
 
+const reader = new MarstekPollingReader();
+const loggedFailures = new Map<string, { reason: string; at: number }>();
 const defaultOperations: PollOperations = {
-  read: readMarstekDevice,
+  read: (device) => reader.read(device),
   save: saveMarstekReading,
   fail: markMarstekFailure,
 };
@@ -22,10 +24,14 @@ export async function pollMarstekDevices(
     try {
       const reading = await operations.read(device);
       await operations.save(device.id, reading);
-      console.info("marstek_poll_success", { deviceId: device.id, flow: reading.flow, sampledAt: reading.sampledAt.toISOString() });
     } catch (error) {
       const reason = error instanceof Error ? error.message : "unknown_error";
-      console.error("marstek_poll_failed", { deviceId: device.id, reason });
+      const now = Date.now();
+      const lastLogged = loggedFailures.get(device.id);
+      if (!lastLogged || lastLogged.reason !== reason || now - lastLogged.at >= 60_000) {
+        console.error("marstek_poll_failed", { deviceId: device.id, reason });
+        loggedFailures.set(device.id, { reason, at: now });
+      }
       try {
         await operations.fail(device.id, reason);
       } catch (databaseError) {

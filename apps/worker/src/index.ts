@@ -1,24 +1,29 @@
 import "dotenv/config";
 import cron from "node-cron";
 import { disconnectDatabase, pruneMarstekMeasurements, syncMarstekDevices } from "@home-dashboard/database";
-import { parseMarstekDevices } from "@home-dashboard/integrations";
+import { parseMarstekDevices, type MarstekDeviceConfig } from "@home-dashboard/integrations";
 import { pollMarstekDevices } from "./jobs/marstek-poll";
 
 const devices = parseMarstekDevices(process.env.MARSTEK_DEVICES);
-let polling = false;
 let pruning = false;
 let stopping = false;
-let pollingPromise: Promise<void> | undefined;
+const pollTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const pollingPromises = new Map<string, Promise<void>>();
 let pruningPromise: Promise<void> | undefined;
 
-async function runPolling(): Promise<void> {
-  if (polling || stopping) return;
-  polling = true;
-  try {
-    await pollMarstekDevices(devices);
-  } finally {
-    polling = false;
-  }
+function schedulePolling(device: MarstekDeviceConfig): void {
+  if (stopping) return;
+  const startedAt = Date.now();
+  const promise = pollMarstekDevices([device])
+    .catch((error) => {
+      console.error("marstek_poll_job_failed", { deviceId: device.id, error: error instanceof Error ? error.name : "unknown_error" });
+    })
+    .finally(() => {
+      if (!stopping) {
+        pollTimers.set(device.id, setTimeout(() => schedulePolling(device), Math.max(0, 1_000 - (Date.now() - startedAt))));
+      }
+    });
+  pollingPromises.set(device.id, promise);
 }
 
 async function pruneOldMeasurements(): Promise<void> {
@@ -37,23 +42,20 @@ async function pruneOldMeasurements(): Promise<void> {
 
 async function main(): Promise<void> {
   await syncMarstekDevices(devices);
-  console.info("worker_started", { marstekDevices: devices.length, pollingSeconds: 60 });
-  const pollTask = cron.schedule("* * * * *", () => {
-    if (!polling) pollingPromise = runPolling();
-  }, { timezone: "UTC" });
+  console.info("worker_started", { marstekDevices: devices.length, pollingSeconds: 1 });
   const retentionTask = cron.schedule("17 3 * * *", () => {
     if (!pruning) pruningPromise = pruneOldMeasurements();
   }, { timezone: "UTC" });
-  pollingPromise = runPolling();
+  for (const device of devices) schedulePolling(device);
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.once(signal, async () => {
       if (stopping) return;
       stopping = true;
-      pollTask.stop();
+      for (const timer of pollTimers.values()) clearTimeout(timer);
       retentionTask.stop();
       console.info("worker_stopping", { signal });
-      await Promise.allSettled([pollingPromise, pruningPromise]);
+      await Promise.allSettled([...pollingPromises.values(), pruningPromise]);
       await disconnectDatabase();
       process.exit(0);
     });

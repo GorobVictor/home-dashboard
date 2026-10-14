@@ -80,13 +80,33 @@ export async function listMarstekDevices() {
   });
 }
 
-export async function listMarstekMeasurements(deviceId: string, since: Date) {
-  return getDatabase().marstekMeasurement.findMany({
-    where: { deviceId, sampledAt: { gte: since } },
-    orderBy: { sampledAt: "asc" },
-    take: 11_000,
-    select: measurementSelect,
-  });
+export interface MarstekMeasurementBucket {
+  sampledAt: Date;
+  socPercent: number | null;
+  chargePowerW: number;
+  dischargePowerW: number;
+  gridPowerW: number | null;
+  pvPowerW: number | null;
+  chargeEnergyWh: number;
+  dischargeEnergyWh: number;
+}
+
+export async function listMarstekMeasurementBuckets(deviceId: string, since: Date, bucketSeconds: 60 | 600) {
+  return getDatabase().$queryRaw<MarstekMeasurementBucket[]>`
+    SELECT
+      to_timestamp(floor(extract(epoch FROM sampled_at) / ${bucketSeconds}) * ${bucketSeconds}) AS "sampledAt",
+      avg(soc_percent)::double precision AS "socPercent",
+      avg(charge_power_w)::double precision AS "chargePowerW",
+      avg(discharge_power_w)::double precision AS "dischargePowerW",
+      avg(grid_power_w)::double precision AS "gridPowerW",
+      avg(pv_power_w)::double precision AS "pvPowerW",
+      sum(charge_energy_wh)::double precision AS "chargeEnergyWh",
+      sum(discharge_energy_wh)::double precision AS "dischargeEnergyWh"
+    FROM marstek_measurements
+    WHERE device_id = ${deviceId} AND sampled_at >= ${since}
+    GROUP BY 1
+    ORDER BY 1 ASC
+  `;
 }
 
 export async function pruneMarstekMeasurements(before: Date): Promise<number> {

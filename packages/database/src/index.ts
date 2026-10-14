@@ -3,7 +3,7 @@ export { createUser, userRepository } from "./users";
 export type { NewUser, PublicUser, UserCredentials, UserRepository } from "./users";
 export {
   listMarstekDevices,
-  listMarstekMeasurements,
+  listMarstekMeasurementBuckets,
   markMarstekFailure,
   pruneMarstekMeasurements,
   saveMarstekReading,
