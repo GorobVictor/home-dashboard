@@ -5,12 +5,12 @@ Monorepo for the self-hosted home dashboard. The existing Next.js app is in `app
 ## Repository layout
 
 - `apps/web` — Next.js App Router app and UI.
-- `apps/worker` — reserved for scheduled jobs.
+- `apps/worker` — worker process; scheduled jobs can be added here.
 - `packages/database` — reserved for Prisma schema, migrations, and repositories.
 - `packages/integrations` — reserved for shared device and API integrations.
-- `docker` — reserved for service Dockerfiles.
+- `docker` — service Dockerfiles and pgAdmin setup.
 
-The reserved directories contain no services yet. Add implementation there when those features are built.
+The worker starts without scheduled jobs. Database models and integrations have not been implemented yet.
 
 ## Development
 
@@ -19,4 +19,17 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Run `npm run typecheck` and `npm run lint` from the repository root for web checks.
+Open [http://localhost:3000](http://localhost:3000). Run `npm run typecheck` for both apps and `npm run lint` for the web app from the repository root.
+
+## Docker Compose
+
+Copy `.env.example` to `.env` and set `POSTGRES_PASSWORD` and `PGADMIN_DEFAULT_PASSWORD` to strong, distinct values. Use a URL-safe PostgreSQL password (letters, digits, `_`, or `-`) because Compose also uses it in `DATABASE_URL`.
+
+```bash
+cp .env.example .env
+docker compose up --build -d
+```
+
+The dashboard is available at [http://localhost:3000](http://localhost:3000) and pgAdmin at [http://localhost:5050](http://localhost:5050). Sign in to pgAdmin with `PGADMIN_DEFAULT_EMAIL` and `PGADMIN_DEFAULT_PASSWORD` from `.env`. Its Home Dashboard PostgreSQL connection is imported from `docker/pgadmin/servers.json`; the database password comes from the generated pgpass file. PostgreSQL has no host port and both web interfaces bind to localhost.
+
+The `postgres_data` and `pgadmin_data` volumes retain data across restarts. pgAdmin imports server definitions when its data volume is first created. No Prisma migrations exist yet; when they are added, run `prisma migrate deploy` as a separate deployment step.
