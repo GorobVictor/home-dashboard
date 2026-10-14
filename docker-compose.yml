@@ -1,5 +1,8 @@
+name: home-dashboard
+
 services:
   postgres:
+    container_name: home-dashboard-postgres
     image: postgres:17
     environment:
       POSTGRES_DB: home_dashboard
@@ -15,6 +18,7 @@ services:
     restart: unless-stopped
 
   web:
+    container_name: home-dashboard-web
     image: home-dashboard-web:local
     build:
       context: .
@@ -27,6 +31,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
@@ -46,14 +52,17 @@ services:
       INITIAL_USER_LOGIN: ${INITIAL_USER_LOGIN:-}
       INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD:-}
     depends_on:
-      postgres:
-        condition: service_healthy
-    command: ["sh", "-c", "npm run db:migrate && npm run db:create-user"]
+      migrate:
+        condition: service_completed_successfully
+    command: ["npm", "run", "db:create-user"]
     restart: "no"
 
   migrate:
+    container_name: home-dashboard-migrate
     image: home-dashboard-web:local
-    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
     environment:
       DATABASE_URL: postgresql://home_dashboard:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/home_dashboard
     depends_on:
@@ -63,6 +72,8 @@ services:
     restart: "no"
 
   worker:
+    container_name: home-dashboard-worker
+    image: home-dashboard-worker:local
     build:
       context: .
       dockerfile: docker/worker.Dockerfile
@@ -72,10 +83,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     init: true
     restart: unless-stopped
 
   pgadmin-passfile:
+    container_name: home-dashboard-pgadmin-passfile
     image: node:22-bookworm-slim
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
@@ -86,6 +100,7 @@ services:
     restart: "no"
 
   pgadmin:
+    container_name: home-dashboard-pgadmin
     image: dpage/pgadmin4:9.18
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
