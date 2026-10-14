@@ -12,20 +12,21 @@
     "build": "npm run build --workspaces --if-present",
     "start": "npm run start --workspace @home-dashboard/web",
     "lint": "npm run lint --workspace @home-dashboard/web",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "test": "cd apps/web && node --import tsx --test src/server/auth/*.test.ts",
+    "typecheck": "npm run db:generate && npm run typecheck --workspaces --if-present",
+    "db:generate": "prisma generate --config packages/database/prisma.config.ts",
+    "db:migrate": "prisma migrate deploy --config packages/database/prisma.config.ts",
+    "db:create-user": "tsx apps/web/scripts/create-user.ts"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.10.0",
-    "@prisma/client": "^7.10.0",
     "dotenv": "^18.0.8",
-    "node-cron": "^4.6.0",
-    "pg": "^8.23.1"
+    "node-cron": "^4.6.0"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/pg": "^8.23.1",
     "eslint": "^9",
-    "prisma": "^8.0.0-rc.22",
+    "prisma": "^7.10.0",
     "tsx": "^4.23.15",
     "typescript": "^5"
   }

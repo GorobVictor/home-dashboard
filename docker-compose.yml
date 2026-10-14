@@ -15,11 +15,13 @@ services:
     restart: unless-stopped
 
   web:
+    image: home-dashboard-web:local
     build:
       context: .
       dockerfile: docker/web.Dockerfile
     environment:
       DATABASE_URL: postgresql://home_dashboard:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/home_dashboard
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?Set AUTH_JWT_SECRET in .env}
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"
     depends_on:
@@ -33,6 +35,32 @@ services:
       start_period: 30s
     init: true
     restart: unless-stopped
+
+  setup:
+    image: home-dashboard-web:local
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: postgresql://home_dashboard:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/home_dashboard
+      INITIAL_USER_FIRST_NAME: ${INITIAL_USER_FIRST_NAME:-}
+      INITIAL_USER_LAST_NAME: ${INITIAL_USER_LAST_NAME:-}
+      INITIAL_USER_LOGIN: ${INITIAL_USER_LOGIN:-}
+      INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "npm run db:migrate && npm run db:create-user"]
+    restart: "no"
+
+  migrate:
+    image: home-dashboard-web:local
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: postgresql://home_dashboard:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/home_dashboard
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["npm", "run", "db:migrate"]
+    restart: "no"
 
   worker:
     build:

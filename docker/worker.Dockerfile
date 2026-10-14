@@ -4,6 +4,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/package.json
 COPY apps/worker/package.json apps/worker/package.json
+COPY packages/database/package.json packages/database/package.json
 RUN npm ci
 COPY apps/worker apps/worker
 RUN npm run build --workspace @home-dashboard/worker

@@ -20,6 +20,7 @@
 # production
 /build
 **/dist/
+/packages/database/generated/
 
 # misc
 .DS_Store
