@@ -127,7 +127,7 @@ AGENTS.md
 
 | Change needed | Start with |
 | --- | --- |
-| Dashboard layout/tabs/mobile UI | `apps/web/src/app/dashboard/page.tsx` and adjacent components |
+| Dashboard layout/tabs/mobile UI | `apps/web/src/app/dashboard/page.tsx`, `energy-dashboard.tsx` and adjacent components |
 | Smooth number animation | `apps/web/src/app/dashboard/fade-value.tsx` |
 | Dashboard data shape/chart sampling | `apps/web/src/server/marstek/dashboard.ts` |
 | API security/input validation | route handler plus `apps/web/src/server/auth/*` |
@@ -182,6 +182,8 @@ Default to Server Components. Existing focused client components:
 
 Use shadcn components in `apps/web/src/components/ui`, semantic controls, focus states, empty/error/loading states, Tailwind theme tokens, and responsive layouts. Narrow screens must retain usable tab navigation, forms, tables, and dialogs.
 
+Login, dashboard and settings share the dark graphite palette through `dashboard-theme` on the root layout. Shared colors live in `globals.css`; `dashboard-shell` adds the subtle background accent, including on login/settings. Keep portalled dialogs and toast notifications consistent with this theme.
+
 ### Dashboard composition
 
 `getMarstekDashboard()` is the server-side composition point. It:
@@ -206,7 +208,7 @@ minutes_to_empty = remaining_capacity_Wh / current_discharge_W × 60
 - `remainingCapacityWh` is the latest device reading; `dischargePowerW` is the non-negative output magnitude.
 - Estimate renders only above 0.5 W discharge and is bounded to 365 days; otherwise `—`.
 - It assumes unchanged load/current usable capacity and is not a BMS prediction.
-- The top fleet-summary card is the primary placement; do not create conflicting duplicate calculations.
+- The top battery-overview card is the primary placement; do not create conflicting duplicate calculations. It keeps the duration in a single fixed-height row with separate day/hour/minute units.
 
 ## 7. Real-time event pipeline
 
