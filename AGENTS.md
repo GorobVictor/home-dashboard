@@ -16,6 +16,7 @@ Implemented features:
 - Browser toast notifications and optional Telegram messages for new Freelancehunt projects/messages.
 - Real-time refresh through PostgreSQL `NOTIFY` → authenticated WebSocket → browser, with a browser refresh fallback.
 - PgAdmin as a local database UI.
+- Centralized immutable events, personal notification inboxes and shared Telegram channels with durable delivery attempts/retries.
 
 Do not introduce the following without an explicit task: DTEK/weather/AI integration, public registration, multi-tenant roles, device-control actions, a queue, leader election, cloud deployment, or a second worker replica.
 
@@ -171,6 +172,8 @@ AGENTS.md
 | `/dashboard?device=ID&range=H` | Selected Marstek device and predefined range |
 | `/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD` | Custom UTC range; max 90 days and never future |
 | `/settings` | Protected Freelancehunt monitoring settings |
+| `/events` | Protected filtered, paginated immutable event log |
+| `/settings/notifications` | Shared Telegram channels, tests and delivery history |
 
 Default to Server Components. Existing focused client components:
 
@@ -234,6 +237,7 @@ Channel name is exactly `home_dashboard_events`. Payloads must remain compact JS
 | `freelancehunt.project.discovered` | `saveFreelancehuntProjects` | Toast/Open action, refresh |
 | `freelancehunt.message.discovered` | `saveFreelancehuntThreads` | Toast/Open action, refresh |
 | `connection.ready` | custom server | Connection acknowledgement only |
+| `notifications.changed` | event/notification repositories | Inbox reload and debounced page refresh |
 
 `apps/web/src/server.ts` runs Next and `ws` together. It owns PostgreSQL `LISTEN`, reconnection after failure, 30-second socket pings and graceful shutdown. Do not replace this with a Next route handler: WebSocket upgrades depend on this custom-server arrangement.
 
@@ -343,7 +347,7 @@ Singleton row is `freelancehunt_settings.id = "default"`.
 | `enabled` | Master switch; worker returns early when false or API token absent |
 | `projectPollingEnabled` | Poll project list |
 | `messagePollingEnabled` | Poll threads/unread messages |
-| `telegramEnabled` | Send Telegram only when token/chat ID exist |
+| `telegramEnabled` | Permit newly generated Freelancehunt notifications to target enabled Telegram channels |
 | `pollIntervalSeconds` | Valid `10..3600`; worker minimum next delay is 5 s |
 | `skillIds` | ≤50 distinct positive numeric IDs |
 | `projectsInitialized`, `messagesInitialized` | Baseline: first successful batch persists but never notifies |
@@ -365,8 +369,10 @@ flowchart LR
   Threads --> SaveThreads[Upsert / detect new unread activity]
   SaveProjects --> Events[pg_notify]
   SaveThreads --> Events
-  SaveProjects --> Telegram{Telegram enabled/configured?}
-  SaveThreads --> Telegram
+  SaveProjects --> Pending[Persist pending notifications]
+  SaveThreads --> Pending
+  Pending --> Delivery[Worker delivery loop]
+  Delivery --> Telegram{Telegram enabled/configured?}
   Events --> Next
   Telegram --> Next
 ```
@@ -375,7 +381,7 @@ Projects deduplicate by `external_id`. The baseline batch creates database rows 
 
 Threads upsert by `external_id`. After baseline, notification requires unread status plus a changed message count or last-post time.
 
-Telegram uses `sendMessage`, a 10-second timeout, compact text + URL, and no secret logging. Failed delivery fails the containing poll job and is visible in worker logs; do not claim successful delivery when it fails.
+Telegram delivery uses native `fetch` in `packages/integrations/src/telegram.ts`, a 10-second timeout and safe error codes. Delivery failures are recorded independently of polling and retried by `apps/worker/src/jobs/notification-delivery.ts`; no external request runs inside a transaction. The legacy `sendTelegramMessage` export delegates to this client.
 
 ### Endpoints
 
@@ -388,7 +394,14 @@ Telegram uses `sendMessage`, a 10-second timeout, compact text + URL, and no sec
 | `/api/auth/login` | `POST` | Bounded credentials input; sets cookie |
 | `/api/auth/logout` | `POST` | Session logout |
 | `/api/auth/me` | `GET` | Current authenticated user |
-| `/api/events` | WebSocket | Same-origin valid JWT session |
+| `/api/events` | WebSocket upgrade | Existing authenticated socket; keep HTTP routes off this exact path |
+| `/api/events/list` | GET | Filtered, paginated central event log |
+| `/api/notifications` | GET | Personal paginated inbox, optional unread filter |
+| `/api/notifications/read` | POST | Mark owned notification or personal inbox read |
+| `/api/notification-channels` | GET / POST | Shared household channel listing/creation |
+| `/api/notification-channels/[id]` | PUT / DELETE | Update / disable channel, cancel pending work |
+| `/api/notification-channels/[id]/test` | POST | Persist a test event for enabled destination; 30 s per-user cooldown |
+| `/api/notification-deliveries` | GET | Paginated delivery history, optional channel filter |
 
 `{ "error": "freelancehunt_not_configured" }` means the web container lacks `FREELANCEHUNT_API_TOKEN`. Set it in private `.env`, then rebuild/restart relevant Compose services; never hard-code it.
 
@@ -429,7 +442,9 @@ Never commit `.env`, tokens, passwords, credentials, or private local values. Ke
 | `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD` | pgadmin | Local admin credentials |
 | `MARSTEK_DEVICES` | worker | JSON device list |
 | `FREELANCEHUNT_API_TOKEN` | web + worker | Enables skills endpoint and monitoring |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | worker | Both needed for Telegram delivery |
+| `TELEGRAM_BOT_TOKEN` | worker | Secret; required for Telegram delivery, never persisted |
+| `TELEGRAM_CHAT_ID` | worker | Optional one-time import as a Freelancehunt channel; UI then authoritative |
+| `MARSTEK_LOW_BATTERY_PERCENT` | worker | 1..90, default 20; recovery threshold +5 |
 | `DATABASE_URL` | application processes | Compose injects it; direct local commands need it |
 | `HOSTNAME`, `PORT` | custom web server | Defaults `0.0.0.0:3000`; Compose sets hostname |
 
@@ -562,3 +577,14 @@ Before handoff:
 8. End with concise Ukrainian summary: changed items, checks actually run, remaining limitation.
 
 Done means applicable code is in right boundary, types/tests pass or gap is stated, inputs/secrets are safe, migration/config wiring exists when required, worker stays safe, and local service is rebuilt when user expects to see the result.
+
+## 17. Central events and notifications
+
+- `packages/database/src/events.ts` owns publication, durable observations, per-user inbox fanout, channel filtering and compact invalidation within the producer transaction. `event-policy.ts` contains severity, hysteresis and retry policies. Exported `publishEvent` and `observeEvent` can be used by either app. Permanent deduplication keys and time-window deduplication use transaction advisory locks; they do not elect a worker leader.
+- `Event` is immutable, enforced by a database trigger. `EventState` persists baseline/transition/deduplication state. `Notification` is unique per event/recipient. Browser inboxes use `userId`; Telegram deliveries use `channelId`. Never share read status between users.
+- All authenticated local users manage shared household channels and delivery history; no roles were added. API mutations require same-origin requests and bounded validated input. Channel data contains destinations and filters, never bot credentials.
+- Delivery is processed every two seconds by the existing single worker. Claim/update and individual attempts are persisted, with a 120 s lease and six-attempt budget. An expired attempt becomes `unknown`; retries honor Telegram backoff. Missing bot configuration does not consume attempts. Do not claim exactly-once external delivery; ambiguous responses can duplicate messages.
+- Changing a channel cancels pending work instead of redirecting old notifications. In-flight HTTP may finish. DELETE archives/disables the channel so history survives. Tests bypass severity/source filters, but not channel enablement.
+- Automatic Marstek events cover low/recovered/full battery and device offline/online. Initial observations are silent except an already stale/offline device. Current RPCs lack a trustworthy grid-presence signal: `observeMarstekGrid` supports confirmed transitions but is deliberately not fed grid-power or CT connectivity guesses.
+- Freelancehunt discoveries publish central events in the existing persistence transactions while keeping legacy WebSocket events. Three failed polling cycles produce `system.service_unavailable`; recovery produces `system.service_restored`. Telegram delivery failures stay in delivery history to avoid recursive alerts.
+- `events.integration.test.ts` requires an explicit disposable `EVENTS_TEST_DATABASE_URL` ending in `_events_test` and fresh migrations. Default tests require no database or external credentials.
