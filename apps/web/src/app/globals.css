@@ -128,3 +128,51 @@
     @apply font-sans;
   }
 }
+
+.dashboard-theme,
+.dashboard-shell,
+.dashboard-dialog {
+  color-scheme: dark;
+  --background: oklch(0.145 0.008 255);
+  --card: oklch(0.205 0.008 255);
+  --popover: oklch(0.205 0.008 255);
+  --muted: oklch(0.255 0.008 255);
+  --muted-foreground: oklch(0.7 0.012 255);
+  --border: oklch(1 0 0 / 8%);
+  --ring: oklch(0.76 0.16 160);
+  --chart-1: oklch(0.76 0.16 160);
+  --chart-2: oklch(0.76 0.16 160);
+  --chart-3: oklch(0.82 0.16 85);
+  --chart-4: oklch(0.76 0.13 240);
+  --chart-5: oklch(0.75 0.13 300);
+}
+
+.dashboard-shell {
+  background-image: radial-gradient(ellipse at 15% 0%, oklch(0.76 0.16 160 / 5%), transparent 40%);
+}
+
+.energy-eyebrow {
+  @apply text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground;
+}
+
+.energy-battery-card {
+  background-image: radial-gradient(ellipse at 50% 35%, oklch(0.76 0.16 160 / 5%), transparent 65%);
+}
+
+.energy-charge-ring {
+  background: conic-gradient(from 210deg, var(--chart-1) var(--charge), color-mix(in oklch, var(--foreground) 7%, transparent) 0);
+  box-shadow: 0 0 45px -25px var(--chart-1);
+}
+
+.energy-flow-active {
+  stroke-dasharray: 4 8;
+  animation: energy-flow 1.8s linear infinite;
+}
+
+@keyframes energy-flow {
+  to { stroke-dashoffset: -24; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .energy-flow-active { animation: none; }
+}
