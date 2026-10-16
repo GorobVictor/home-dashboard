@@ -1,16 +1,16 @@
 # Home Dashboard
 
-Monorepo for the self-hosted home dashboard. The existing Next.js app is in `apps/web`.
+Monorepo for the self-hosted home dashboard, with an authenticated Next.js app, PostgreSQL storage, and a background worker.
 
 ## Repository layout
 
 - `apps/web` — Next.js App Router app and UI.
-- `apps/worker` — worker process; scheduled jobs can be added here.
+- `apps/worker` — Marstek and Freelancehunt polling jobs.
 - `packages/database` — Prisma schema, migrations, client, and user repository.
-- `packages/integrations` — shared local Marstek UDP client and response validation.
+- `packages/integrations` — shared Marstek UDP and Freelancehunt/Telegram clients with response validation.
 - `docker` — service Dockerfiles and pgAdmin setup.
 
-The worker polls configured Marstek batteries. Other device and external API integrations have not been implemented yet.
+The dashboard includes Marstek energy telemetry and Freelancehunt project/message monitoring, with optional Telegram notifications. See [AGENTS.md](AGENTS.md) for the architecture, security boundaries, and operating details.
 
 ## Development
 
