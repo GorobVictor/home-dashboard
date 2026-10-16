@@ -1,0 +1,21 @@
+export const severities = ["info", "warning", "error", "critical"] as const;
+export type Severity = typeof severities[number];
+
+export function acceptsSeverity(minimum: Severity, severity: Severity): boolean {
+  return severities.indexOf(severity) >= severities.indexOf(minimum);
+}
+
+export function shouldPublish(previous: { value: string; lastEventAt: Date | null } | null, value: string, now: Date, cooldownMs = 0, emitInitial = false): boolean {
+  if (!previous) return emitInitial;
+  return previous.value !== value && (!previous.lastEventAt || now.getTime() - previous.lastEventAt.getTime() >= cooldownMs);
+}
+
+export function batteryState(soc: number, previous: string | undefined, low = 20, recovery = 25): string {
+  if (soc <= low) return "low";
+  if (previous === "low" && soc < recovery) return "low";
+  return "normal";
+}
+
+export function retryDelayMs(attempt: number, retryAfterSeconds = 0): number {
+  return Math.max(Math.min(3_600_000, 5_000 * 2 ** Math.max(0, attempt - 1)), Math.min(86_400, Math.max(0, retryAfterSeconds)) * 1_000);
+}

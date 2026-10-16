@@ -30,6 +30,10 @@ export function DashboardLiveUpdates() {
           const message: unknown = JSON.parse(String(event.data));
           if (!message || typeof message !== "object" || !("type" in message)) return;
           if (message.type === "marstek.measurement.saved") refresh();
+          if (message.type === "notifications.changed") {
+            window.dispatchEvent(new Event("notifications.changed"));
+            refresh();
+          }
           if (message.type === "freelancehunt.project.discovered" && "project" in message && message.project && typeof message.project === "object" && "name" in message.project) {
             const project = message.project as { name: unknown; url?: unknown };
             const projectUrl = typeof project.url === "string" ? project.url : undefined;

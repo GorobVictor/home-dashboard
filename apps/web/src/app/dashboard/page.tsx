@@ -9,6 +9,7 @@ import { LogoutButton } from "./logout-button";
 import { DashboardLiveUpdates } from "./live-updates";
 import { FreelancehuntProjects } from "./freelancehunt-projects";
 import { EnergyDashboard } from "./energy-dashboard";
+import { NotificationBell } from "@/components/notification-bell";
 
 const validRanges = new Set<DashboardRange>([1, 6, 24, 168, 720]);
 
@@ -32,7 +33,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <div className="grid size-11 shrink-0 place-items-center rounded-2xl border border-emerald-300/15 bg-emerald-400/10"><BatteryFull aria-hidden="true" className="size-5 text-emerald-300" /></div>
         <div><p className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground sm:text-xs">Home Dashboard</p><h1 className="mt-0.5 text-2xl font-semibold tracking-tight sm:text-3xl">{freelancehunt ? "Your workspace" : "Your energy, at a glance."}</h1></div>
       </div>
-      <div className="flex items-center gap-2"><span className="mr-2 hidden text-xs text-muted-foreground md:inline">Welcome, {user.firstName}.</span><Link href="/settings" className="inline-flex size-9 items-center justify-center rounded-lg border hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" aria-label="Settings"><Settings className="size-4" /></Link><LogoutButton /></div>
+      <div className="flex items-center gap-2"><span className="mr-2 hidden text-xs text-muted-foreground md:inline">Welcome, {user.firstName}.</span><NotificationBell /><Link href="/settings" className="inline-flex size-9 items-center justify-center rounded-lg border hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" aria-label="Settings"><Settings className="size-4" /></Link><LogoutButton /></div>
     </header>
     <nav className="w-full overflow-x-auto rounded-lg border bg-muted/30 p-1 sm:w-fit" aria-label="Dashboard sections"><div className="flex min-w-max"><TabLink active={!freelancehunt} href="/dashboard">Energy</TabLink><TabLink active={freelancehunt} href="/dashboard?tab=freelancehunt">Freelancehunt <Badge variant="secondary" className="ml-1">{projectPage.total}</Badge></TabLink></div></nav>
     {freelancehunt ? <section className="space-y-4"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-2xl font-semibold">Freelancehunt projects</h2><p className="text-sm text-muted-foreground">{projectPage.total} projects · select one to read its full description.</p></div><Link className="text-sm font-medium text-primary hover:underline" href="/settings">Configure filters</Link></div><FreelancehuntProjects projects={projectPage.projects.map((project) => ({ ...project, discoveredAt: project.discoveredAt.toISOString() }))} /><ProjectPagination page={projectPage.page} pageSize={projectPage.pageSize} total={projectPage.total} /></section> : <EnergyDashboard dashboard={dashboard} rangeQuery={custom ? new URLSearchParams({ from: custom.from.toISOString().slice(0, 10), to: custom.to.toISOString().slice(0, 10) }).toString() : `range=${range}`} />}

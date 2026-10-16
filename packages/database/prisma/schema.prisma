@@ -9,6 +9,7 @@ datasource db {
 }
 
 model User {
+  notifications Notification[]
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   firstName    String   @map("first_name") @db.VarChar(100)
   lastName     String   @map("last_name") @db.VarChar(100)
@@ -18,6 +19,106 @@ model User {
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("users")
+}
+
+enum EventSeverity {
+  info
+  warning
+  error
+  critical
+}
+
+enum NotificationStatus {
+  pending
+  processing
+  sent
+  failed
+  cancelled
+}
+
+model Event {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  source String @db.VarChar(64)
+  type String @db.VarChar(100)
+  severity EventSeverity
+  occurredAt DateTime @default(now()) @db.Timestamptz(6)
+  title String @db.VarChar(500)
+  payload Json @default("{}") @db.JsonB
+  deduplicationKey String? @unique @db.VarChar(255)
+  notifications Notification[]
+
+  @@index([occurredAt(sort: Desc), id])
+  @@index([source, occurredAt(sort: Desc)])
+  @@index([type, occurredAt(sort: Desc)])
+  @@index([severity, occurredAt(sort: Desc)])
+  @@map("events")
+}
+
+// Durable observations are separate from the immutable event log.
+model EventState {
+  key String @id @db.VarChar(255)
+  value String @db.VarChar(100)
+  failures Int @default(0)
+  lastEventAt DateTime? @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@map("event_states")
+}
+
+model NotificationChannel {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name String @db.VarChar(100)
+  kind String @default("telegram") @db.VarChar(16)
+  chatId String @db.VarChar(100)
+  enabled Boolean @default(true)
+  minSeverity EventSeverity @default(info)
+  sources Json @default("[]") @db.JsonB
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  notifications Notification[]
+
+  @@unique([kind, chatId])
+  @@map("notification_channels")
+}
+
+model Notification {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId String @db.Uuid
+  event Event @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  recipientKey String @db.VarChar(100)
+  userId String? @db.Uuid
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channelId String? @db.Uuid
+  channel NotificationChannel? @relation(fields: [channelId], references: [id], onDelete: Restrict)
+  readAt DateTime? @db.Timestamptz(6)
+  status NotificationStatus @default(pending)
+  attemptCount Int @default(0)
+  nextAttemptAt DateTime @default(now()) @db.Timestamptz(6)
+  leaseUntil DateTime? @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  deliveries NotificationDelivery[]
+
+  @@unique([eventId, recipientKey])
+  @@index([userId, readAt, createdAt(sort: Desc)])
+  @@index([status, nextAttemptAt])
+  @@map("notifications")
+}
+
+model NotificationDelivery {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  notificationId String @db.Uuid
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Restrict)
+  attempt Int
+  status String @db.VarChar(20)
+  destination String @db.VarChar(100)
+  startedAt DateTime @default(now()) @db.Timestamptz(6)
+  finishedAt DateTime? @db.Timestamptz(6)
+  errorCode String? @db.VarChar(100)
+  externalMessageId String? @db.VarChar(100)
+
+  @@unique([notificationId, attempt])
+  @@index([startedAt(sort: Desc)])
+  @@map("notification_deliveries")
 }
 
 model MarstekDevice {

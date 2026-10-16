@@ -1,9 +1,10 @@
 import "dotenv/config";
 import cron from "node-cron";
-import { disconnectDatabase, getFreelancehuntSettings, pruneMarstekMeasurements, syncMarstekDevices } from "@home-dashboard/database";
+import { disconnectDatabase, getFreelancehuntSettings, pruneMarstekMeasurements, syncMarstekDevices, initializeLegacyTelegramChannel } from "@home-dashboard/database";
 import { parseMarstekDevices, type MarstekDeviceConfig } from "@home-dashboard/integrations";
 import { pollMarstekDevices } from "./jobs/marstek-poll";
 import { pollFreelancehunt } from "./jobs/freelancehunt-poll";
+import { processNotifications } from "./jobs/notification-delivery";
 
 const devices = parseMarstekDevices(process.env.MARSTEK_DEVICES);
 let pruning = false;
@@ -13,6 +14,15 @@ const pollingPromises = new Map<string, Promise<void>>();
 let pruningPromise: Promise<void> | undefined;
 let freelancehuntTimer: ReturnType<typeof setTimeout> | undefined;
 let freelancehuntPromise: Promise<void> | undefined;
+let notificationTimer: ReturnType<typeof setTimeout> | undefined;
+let notificationPromise: Promise<void> | undefined;
+
+function scheduleNotifications(): void {
+  if (stopping) return;
+  notificationTimer = setTimeout(() => {
+    notificationPromise = processNotifications().catch(() => console.error("notification_processing_failed", { code: "database_or_delivery_failure" })).finally(scheduleNotifications);
+  }, 2_000);
+}
 
 function schedulePolling(device: MarstekDeviceConfig): void {
   if (stopping) return;
@@ -73,12 +83,15 @@ function scheduleFreelancehuntPolling(delayMs = 1_000): void {
 
 async function main(): Promise<void> {
   await syncMarstekDevices(devices);
+  const legacyChatId = process.env.TELEGRAM_CHAT_ID?.trim();
+  if (legacyChatId && /^(-?\d{1,20}|@[a-zA-Z][a-zA-Z0-9_]{4,31})$/.test(legacyChatId)) await initializeLegacyTelegramChannel(legacyChatId);
   console.info("worker_started", { marstekDevices: devices.length, pollingSeconds: 1 });
   const retentionTask = cron.schedule("17 3 * * *", () => {
     if (!pruning) pruningPromise = pruneOldMeasurements();
   }, { timezone: "UTC" });
   for (const device of devices) schedulePolling(device);
   scheduleFreelancehuntPolling();
+  scheduleNotifications();
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.once(signal, async () => {
@@ -86,9 +99,10 @@ async function main(): Promise<void> {
       stopping = true;
       for (const timer of pollTimers.values()) clearTimeout(timer);
       if (freelancehuntTimer) clearTimeout(freelancehuntTimer);
+      if (notificationTimer) clearTimeout(notificationTimer);
       retentionTask.stop();
       console.info("worker_stopping", { signal });
-      await Promise.allSettled([...pollingPromises.values(), pruningPromise, freelancehuntPromise]);
+      await Promise.allSettled([...pollingPromises.values(), pruningPromise, freelancehuntPromise, notificationPromise]);
       await disconnectDatabase();
       process.exit(0);
     });

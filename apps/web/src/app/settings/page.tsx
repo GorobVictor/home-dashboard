@@ -18,6 +18,7 @@ export default async function SettingsPage() {
       <Button variant="outline" className="h-9 gap-2 rounded-lg px-3" render={<Link href="/dashboard" />}><ArrowLeft aria-hidden="true" className="size-4" />Dashboard</Button>
     </header>
     <div><h2 className="text-xl font-semibold tracking-tight">Make it work for you.</h2><p className="mt-1.5 text-sm text-muted-foreground">Choose what to watch on Freelancehunt and how to receive updates.</p></div>
+    <Link href="/settings/notifications" className="inline-flex rounded-lg border px-4 py-2 text-sm hover:bg-muted">Сповіщення та Telegram →</Link>
     <FreelancehuntSettingsForm settings={{ enabled: settings.enabled, projectPollingEnabled: settings.projectPollingEnabled, messagePollingEnabled: settings.messagePollingEnabled, telegramEnabled: settings.telegramEnabled, pollIntervalSeconds: settings.pollIntervalSeconds, skillIds: settings.skillIds as number[] }} />
   </main></div>;
 }

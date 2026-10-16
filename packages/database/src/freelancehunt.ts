@@ -1,5 +1,6 @@
 import type { FreelancehuntProject, FreelancehuntThread } from "@home-dashboard/integrations";
 import { getDatabase } from "./client";
+import { publishEventInTransaction } from "./events";
 
 const settingsId = "default";
 export const defaultFreelancehuntSkillIds = [103, 120, 121, 169, 175, 180, 183, 190, 24, 86];
@@ -45,11 +46,11 @@ export async function updateFreelancehuntSettings(input: FreelancehuntSettingsIn
 }
 
 function projectEvent(project: FreelancehuntProject) {
-  return JSON.stringify({ type: "freelancehunt.project.discovered", project });
+  return JSON.stringify({ type: "freelancehunt.project.discovered", project: { id: project.id, name: project.name, url: project.url } });
 }
 
 function threadEvent(thread: FreelancehuntThread) {
-  return JSON.stringify({ type: "freelancehunt.message.discovered", thread });
+  return JSON.stringify({ type: "freelancehunt.message.discovered", thread: { id: thread.id, subject: thread.subject, url: thread.url } });
 }
 
 export async function saveFreelancehuntProjects(projects: FreelancehuntProject[]): Promise<{ initial: boolean; projects: FreelancehuntProject[] }> {
@@ -80,6 +81,7 @@ export async function saveFreelancehuntProjects(projects: FreelancehuntProject[]
       return { initial: true, projects: [] };
     }
     for (const project of fresh) {
+      await publishEventInTransaction(transaction, { source: "freelancehunt", type: "freelancehunt.project_created", severity: "info", title: `Новий проєкт: ${project.name}`.slice(0, 500), payload: { externalId: project.id, name: project.name, url: project.url, budgetAmount: project.budgetAmount, budgetCurrency: project.budgetCurrency }, deduplicationKey: `fh:project:${project.id}`, telegram: settings.telegramEnabled });
       await transaction.$executeRaw`SELECT pg_notify('home_dashboard_events', ${projectEvent(project)})`;
     }
     return { initial: false, projects: fresh };
@@ -103,10 +105,10 @@ export async function saveFreelancehuntThreads(threads: FreelancehuntThread[]): 
     const fresh: FreelancehuntThread[] = [];
     for (const thread of threads) {
       const previous = known.get(thread.id);
-      const changed = previous && thread.isUnread && (
+      const changed = thread.isUnread && (!previous || (
         thread.messagesCount > previous.messagesCount ||
         (thread.lastPostedAt !== null && previous.lastPostedAt?.getTime() !== thread.lastPostedAt.getTime())
-      );
+      ));
       if (changed) fresh.push(thread);
       await transaction.freelancehuntThread.upsert({
         where: { externalId: thread.id },
@@ -125,6 +127,7 @@ export async function saveFreelancehuntThreads(threads: FreelancehuntThread[]): 
       return { initial: true, threads: [] };
     }
     for (const thread of fresh) {
+      await publishEventInTransaction(transaction, { source: "freelancehunt", type: "freelancehunt.message_received", severity: "info", title: `Нове повідомлення: ${thread.subject}`.slice(0, 500), payload: { externalId: thread.id, subject: thread.subject, url: thread.url }, deduplicationKey: `fh:thread:${thread.id}:${thread.messagesCount}:${thread.lastPostedAt?.getTime() ?? 0}`, telegram: settings.telegramEnabled });
       await transaction.$executeRaw`SELECT pg_notify('home_dashboard_events', ${threadEvent(thread)})`;
     }
     return { initial: false, threads: fresh };

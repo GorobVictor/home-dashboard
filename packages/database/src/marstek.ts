@@ -1,5 +1,6 @@
 import type { MarstekDeviceConfig, MarstekReading } from "@home-dashboard/integrations";
 import { getDatabase } from "./client";
+import { observeEventInTransaction, observeMarstek } from "./events";
 
 const measurementSelect = {
   sampledAt: true,
@@ -55,22 +56,28 @@ export async function saveMarstekReading(deviceId: string, reading: MarstekReadi
   const elapsedHours = elapsedMs > 0 && elapsedMs <= 5 * 60_000 ? elapsedMs / 3_600_000 : 0;
   const chargeEnergyWh = previous ? (previous.chargePowerW + reading.chargePowerW) / 2 * elapsedHours : 0;
   const dischargeEnergyWh = previous ? (previous.dischargePowerW + reading.dischargePowerW) / 2 * elapsedHours : 0;
-  await db.$transaction([
-    db.marstekMeasurement.create({
+  await db.$transaction(async (tx) => {
+    await tx.marstekMeasurement.create({
       data: { deviceId, ...reading, chargeEnergyWh, dischargeEnergyWh },
-    }),
-    db.marstekDevice.update({
+    });
+    await tx.marstekDevice.update({
       where: { id: deviceId },
       data: { lastSeenAt: reading.sampledAt, lastError: null },
-    }),
-    db.$executeRaw`SELECT pg_notify('home_dashboard_events', ${JSON.stringify({ type: "marstek.measurement.saved", deviceId, sampledAt: reading.sampledAt.toISOString() })})`,
-  ]);
+    });
+    await observeMarstek(tx, deviceId, reading.socPercent, reading.sampledAt);
+    await tx.$executeRaw`SELECT pg_notify('home_dashboard_events', ${JSON.stringify({ type: "marstek.measurement.saved", deviceId, sampledAt: reading.sampledAt.toISOString() })})`;
+  });
 }
 
 export async function markMarstekFailure(deviceId: string, reason: string): Promise<void> {
-  await getDatabase().marstekDevice.update({
+  await getDatabase().$transaction(async (tx) => {
+  const device = await tx.marstekDevice.update({
     where: { id: deviceId },
     data: { lastError: reason.slice(0, 100) },
+  });
+  if (Date.now() - (device.lastSeenAt ?? device.createdAt).getTime() > 180_000) {
+    await observeEventInTransaction(tx, `device:${deviceId}`, "offline", { source: "marstek", type: "marstek.device_offline", severity: "warning", title: `Marstek ${deviceId}: немає зв’язку понад 3 хвилини`, payload: { deviceId } }, { emitInitial: true });
+  }
   });
 }
 

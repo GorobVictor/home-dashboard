@@ -140,18 +140,6 @@ export class FreelancehuntClient {
 }
 
 export async function sendTelegramMessage(token: string, chatId: string, message: string): Promise<void> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
-  try {
-    const response = await fetch(`https://api.telegram.org/bot${encodeURIComponent(token)}/sendMessage`, {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: message, disable_web_page_preview: true }), signal: controller.signal,
-    });
-    if (!response.ok) throw new Error(`telegram_http_${response.status}`);
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") throw new Error("telegram_timeout");
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
+  const { deliverTelegramMessage } = await import("./telegram");
+  await deliverTelegramMessage(token, chatId, message);
 }

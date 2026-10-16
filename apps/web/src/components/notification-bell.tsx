@@ -1,0 +1,50 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import { Bell } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverTrigger, PopoverContent, PopoverTitle } from "@/components/ui/popover";
+
+type Inbox = { unreadCount: number; items: { id: string; readAt: string | null; event: { title: string; severity: string; occurredAt: string } }[] };
+export function NotificationBell() {
+  const [inbox, setInbox] = useState<Inbox>();
+  const [error, setError] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const response = await fetch("/api/notifications", { cache: "no-store", signal });
+      if (!response.ok) throw new Error();
+      const data: Inbox = await response.json();
+      if (!signal?.aborted) { setInbox(data); setError(false); }
+    } catch { if (!signal?.aborted) setError(true); }
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    const refresh = () => { void load(controller.signal); };
+    refresh();
+    const interval = setInterval(refresh, 30_000);
+    window.addEventListener("notifications.changed", refresh);
+    return () => { controller.abort(); clearInterval(interval); window.removeEventListener("notifications.changed", refresh); };
+  }, [load]);
+  async function markRead(id?: string) {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/notifications/read", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(id ? { id } : { all: true }) });
+      if (!response.ok) throw new Error();
+      await load();
+    } catch { setError(true); }
+    finally { setBusy(false); }
+  }
+  return <Popover><PopoverTrigger render={<Button variant="outline" size="icon" aria-label={`Сповіщення: ${inbox?.unreadCount ?? 0} непрочитаних`} className="relative size-9" />} onClick={() => void load()}>
+    <Bell className="size-4" />{(inbox?.unreadCount ?? 0) > 0 && <Badge className="absolute -right-2 -top-2 px-1 text-[10px]" aria-hidden="true">{inbox!.unreadCount > 99 ? "99+" : inbox!.unreadCount}</Badge>}
+  </PopoverTrigger><PopoverContent><div className="mb-3 flex items-center justify-between gap-2"><PopoverTitle className="font-semibold">Сповіщення</PopoverTitle><Button variant="ghost" size="sm" disabled={busy || !inbox?.unreadCount} onClick={() => void markRead()}>Прочитати всі</Button></div>
+    <div aria-live="polite" className="max-h-96 space-y-2 overflow-y-auto">
+      {error ? <div role="alert" className="text-sm text-destructive">Не вдалося оновити сповіщення. <button className="underline" onClick={() => void load()}>Повторити</button></div> : !inbox ? <p className="text-sm text-muted-foreground">Завантаження…</p> : inbox.items.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">Сповіщень поки немає.</p> : inbox.items.map((item) => <article key={item.id} className={`rounded-lg border p-3 ${item.readAt ? "opacity-70" : "bg-muted/50"}`}>
+        <div className="flex gap-2"><Badge variant="outline">{item.event.severity}</Badge>{!item.readAt && <span className="text-xs text-primary">Нове</span>}</div><p className="mt-2 break-words text-sm">{item.event.title}</p><time className="mt-1 block text-xs text-muted-foreground">{new Date(item.event.occurredAt).toLocaleString("uk-UA")}</time>
+        {!item.readAt && <Button className="mt-2" variant="ghost" size="sm" disabled={busy} onClick={() => void markRead(item.id)}>Прочитано</Button>}
+      </article>)}
+    </div><div className="mt-4 flex justify-between border-t pt-3 text-sm"><Link className="hover:underline" href="/events">Журнал подій</Link><Link className="hover:underline" href="/settings/notifications">Налаштування</Link></div>
+  </PopoverContent></Popover>;
+}
