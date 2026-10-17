@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-export function DashboardLiveUpdates() {
+export function DashboardLiveUpdates({ userId }: { userId?: string }) {
   const router = useRouter();
 
   useEffect(() => {
@@ -37,7 +37,8 @@ export function DashboardLiveUpdates() {
           if (message.type === "freelancehunt.project.discovered" && "project" in message && message.project && typeof message.project === "object" && "name" in message.project) {
             const project = message.project as { name: unknown; url?: unknown };
             const projectUrl = typeof project.url === "string" ? project.url : undefined;
-            if (typeof project.name === "string") toast.info(`New Freelancehunt project: ${project.name}`, projectUrl ? { action: { label: "Open", onClick: () => window.open(projectUrl, "_blank", "noopener,noreferrer") } } : undefined);
+            const eligible = !("recipientIds" in message) || (Array.isArray(message.recipientIds) && message.recipientIds.includes(userId));
+            if (eligible && typeof project.name === "string") toast.info(`New Freelancehunt project: ${project.name}`, projectUrl ? { action: { label: "Open", onClick: () => window.open(projectUrl, "_blank", "noopener,noreferrer") } } : undefined);
             refresh();
           }
           if (message.type === "freelancehunt.message.discovered" && "thread" in message && message.thread && typeof message.thread === "object" && "subject" in message.thread) {
@@ -63,7 +64,7 @@ export function DashboardLiveUpdates() {
       clearTimeout(refreshTimer);
       socket?.close();
     };
-  }, [router]);
+  }, [router, userId]);
 
   return null;
 }

@@ -160,7 +160,7 @@
 }
 
 .energy-charge-ring {
-  background: conic-gradient(from 210deg, var(--chart-1) var(--charge), color-mix(in oklch, var(--foreground) 7%, transparent) 0);
+  background: conic-gradient(from 0deg, var(--chart-1) var(--charge), color-mix(in oklch, var(--foreground) 7%, transparent) 0);
   box-shadow: 0 0 45px -25px var(--chart-1);
 }
 

@@ -7,7 +7,7 @@ export async function PUT(request: NextRequest, context: Context) {
   return notificationRoute(request, true, async () => {
     const { id } = await context.params;
     if (!isUuid(id)) throw new NotificationInputError();
-    return saveNotificationChannel(parseChannel(await notificationBody(request)), id);
+    return saveNotificationChannel(parseChannel(await notificationBody(request, 16384)), id);
   });
 }
 export async function DELETE(request: NextRequest, context: Context) {

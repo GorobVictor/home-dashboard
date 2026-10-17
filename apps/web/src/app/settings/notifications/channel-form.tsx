@@ -6,11 +6,13 @@ import type { ChannelInput } from "@home-dashboard/database";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { FreelancehuntScoringEditor } from "@/components/freelancehunt-scoring-editor";
+import { initialScoringProfiles } from "@home-dashboard/integrations/freelancehunt-rules";
 
 const emptyChannel: ChannelInput = { name: "", chatId: "", enabled: true, minSeverity: "info", sources: [] };
 export function ChannelForm({ channel }: { channel?: ChannelInput & { id: string } }) {
   const router = useRouter();
-  const [values, setValues] = useState<ChannelInput>(channel ? { name: channel.name, chatId: channel.chatId, enabled: channel.enabled, minSeverity: channel.minSeverity, sources: channel.sources } : emptyChannel);
+  const [values, setValues] = useState<ChannelInput>(channel ? { name: channel.name, chatId: channel.chatId, enabled: channel.enabled, minSeverity: channel.minSeverity, sources: channel.sources, projectMinScore: channel.projectMinScore ?? 0, projectScoring: channel.projectScoring ?? initialScoringProfiles[0].profile } : { ...emptyChannel, projectMinScore: 0, projectScoring: initialScoringProfiles[0].profile });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState(false);
@@ -39,6 +41,7 @@ export function ChannelForm({ channel }: { channel?: ChannelInput & { id: string
       <div className="flex items-center gap-3 self-end py-2"><Switch id={`${prefix}-enabled`} checked={values.enabled} onCheckedChange={(enabled) => setValues({ ...values, enabled })} /><label htmlFor={`${prefix}-enabled`} className="text-sm">Сповіщення увімкнено</label></div>
     </div>
     <fieldset><legend className="mb-2 text-sm">Джерела · порожній вибір означає всі</legend><div className="flex flex-wrap gap-4">{["marstek", "freelancehunt", "system"].map((source) => <label key={source} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={values.sources.includes(source)} onChange={(event) => setValues({ ...values, sources: event.target.checked ? [...values.sources, source] : values.sources.filter((s) => s !== source) })} />{source}</label>)}</div></fieldset>
+    <details><summary className="cursor-pointer text-sm font-medium">Релевантність проєктів Freelancehunt</summary><div className="mt-3 space-y-3"><label className="block max-w-xs space-y-1 text-sm">Надсилати проєкти з оцінкою ≥<Input type="number" min={0} max={100} required value={values.projectMinScore ?? 0} onChange={(e) => setValues({ ...values, projectMinScore: Number(e.target.value) })} /></label><p className="text-xs text-muted-foreground">Лише для нових проєктів. Інші події та тестові повідомлення не залежать від цієї оцінки. Профіль цього каналу незалежний від особистих профілів.</p><FreelancehuntScoringEditor value={values.projectScoring ?? initialScoringProfiles[0].profile} onChange={(projectScoring) => setValues({ ...values, projectScoring })} disabled={busy} /></div></details>
     <div className="flex flex-wrap gap-2"><Button type="submit" disabled={busy}>{busy ? "Обробка…" : "Зберегти"}</Button>{channel && <><Button type="button" variant="outline" disabled={busy || !channel.enabled} onClick={() => void action("test")}>Тестове сповіщення</Button><Button type="button" variant="ghost" disabled={busy || !channel.enabled} onClick={() => void action("disable")}>Вимкнути</Button></>}</div>
     {message && <p role={error ? "alert" : "status"} className={`text-sm ${error ? "text-destructive" : "text-muted-foreground"}`}>{message}</p>}
   </form>;

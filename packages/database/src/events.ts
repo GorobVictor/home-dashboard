@@ -14,6 +14,8 @@ export interface EventInput {
   deduplicationWindowMs?: number;
   telegram?: boolean;
   channelId?: string;
+  userIds?: string[];
+  channelIds?: string[];
 }
 export type EventTransaction = Prisma.TransactionClient;
 
@@ -40,13 +42,13 @@ export async function publishEventInTransaction(tx: EventTransaction, input: Eve
     const existing = state && state.lastEventAt && Date.now() - state.lastEventAt.getTime() < windowMs ? await tx.event.findUnique({ where: { id: state.value } }) : !windowMs ? await tx.event.findUnique({ where: { deduplicationKey: input.deduplicationKey } }) : null;
     if (existing) return existing;
   }
-  const { telegram = true, channelId, deduplicationWindowMs: _window, ...data } = input;
+  const { telegram = true, channelId, userIds, channelIds, deduplicationWindowMs: _window, ...data } = input;
   void _window;
   if (windowMs) data.deduplicationKey = `${input.deduplicationKey!.slice(0, 210)}:${randomUUID()}`;
   const event = await tx.event.create({ data: { ...data, payload: input.payload ?? {} } });
   if (dedupStateKey) await tx.eventState.upsert({ where: { key: dedupStateKey }, create: { key: dedupStateKey, value: event.id, lastEventAt: new Date() }, update: { value: event.id, lastEventAt: new Date() } });
-  const users = await tx.user.findMany({ select: { id: true } });
-  const channels = telegram ? await tx.notificationChannel.findMany({ where: { enabled: true, ...(channelId ? { id: channelId } : {}) } }) : [];
+  const users = await tx.user.findMany({ where: userIds ? { id: { in: userIds } } : {}, select: { id: true } });
+  const channels = telegram ? await tx.notificationChannel.findMany({ where: { enabled: true, ...(channelId ? { id: channelId } : channelIds ? { id: { in: channelIds } } : {}) } }) : [];
   await tx.notification.createMany({ data: [
     ...users.map((user) => ({ eventId: event.id, recipientKey: `user:${user.id}`, userId: user.id, status: "sent" as const })),
     ...channels.filter((channel) => (channelId || acceptsSeverity(channel.minSeverity, event.severity)) && (channelId || !Array.isArray(channel.sources) || channel.sources.length === 0 || channel.sources.includes(input.source))).map((channel) => ({ eventId: event.id, recipientKey: `channel:${channel.id}`, channelId: channel.id, status: "pending" as const })),

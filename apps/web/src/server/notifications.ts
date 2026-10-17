@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { severities, type ChannelInput, type EventFilters, type Severity } from "@home-dashboard/database";
 import { currentUser } from "./auth/session";
 import { sameOrigin } from "./auth/http";
+import { parseScoringProfile } from "@home-dashboard/integrations/freelancehunt-rules";
 
 export const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 export class NotificationInputError extends Error {}
@@ -24,8 +25,8 @@ export async function notificationRoute(request: NextRequest, mutate: boolean, a
   }
 }
 
-export async function notificationBody(request: NextRequest): Promise<Record<string, unknown>> {
-  if (!request.headers.get("content-type")?.startsWith("application/json") || Number(request.headers.get("content-length") ?? 0) > 4096) throw new NotificationInputError();
+export async function notificationBody(request: NextRequest, limit = 4096): Promise<Record<string, unknown>> {
+  if (!request.headers.get("content-type")?.startsWith("application/json") || Number(request.headers.get("content-length") ?? 0) > limit) throw new NotificationInputError();
   const reader = request.body?.getReader();
   if (!reader) throw new NotificationInputError();
   const chunks: Uint8Array[] = [];
@@ -35,7 +36,7 @@ export async function notificationBody(request: NextRequest): Promise<Record<str
       const { done, value } = await reader.read();
       if (done) break;
       length += value.length;
-      if (length > 4096) { await reader.cancel(); throw new NotificationInputError(); }
+      if (length > limit) { await reader.cancel(); throw new NotificationInputError(); }
       chunks.push(value);
     }
     const body: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
@@ -46,8 +47,11 @@ export async function notificationBody(request: NextRequest): Promise<Record<str
 }
 
 export function parseChannel(body: Record<string, unknown>): ChannelInput {
-  if (Object.keys(body).some((key) => !["name", "chatId", "enabled", "minSeverity", "sources"].includes(key)) || typeof body.name !== "string" || !body.name.trim() || body.name.length > 100 || typeof body.chatId !== "string" || !/^(-?\d{1,20}|@[a-zA-Z][a-zA-Z0-9_]{4,31})$/.test(body.chatId) || typeof body.enabled !== "boolean" || !severities.includes(body.minSeverity as Severity) || !Array.isArray(body.sources) || body.sources.length > 3 || body.sources.some((source) => !["marstek", "freelancehunt", "system"].includes(String(source)))) throw new NotificationInputError();
-  return { name: body.name.trim(), chatId: body.chatId, enabled: body.enabled, minSeverity: body.minSeverity as Severity, sources: [...new Set(body.sources as string[])] };
+  if (Object.keys(body).some((key) => !["name", "chatId", "enabled", "minSeverity", "sources", "projectMinScore", "projectScoring"].includes(key)) || typeof body.name !== "string" || !body.name.trim() || body.name.length > 100 || typeof body.chatId !== "string" || !/^(-?\d{1,20}|@[a-zA-Z][a-zA-Z0-9_]{4,31})$/.test(body.chatId) || typeof body.enabled !== "boolean" || !severities.includes(body.minSeverity as Severity) || !Array.isArray(body.sources) || body.sources.length > 3 || body.sources.some((source) => !["marstek", "freelancehunt", "system"].includes(String(source)))) throw new NotificationInputError();
+  if (body.projectMinScore !== undefined && (typeof body.projectMinScore !== "number" || !Number.isInteger(body.projectMinScore) || body.projectMinScore < 0 || body.projectMinScore > 100)) throw new NotificationInputError();
+  let projectScoring;
+  try { if (body.projectScoring !== undefined) projectScoring = parseScoringProfile(body.projectScoring); } catch { throw new NotificationInputError(); }
+  return { name: body.name.trim(), chatId: body.chatId, enabled: body.enabled, minSeverity: body.minSeverity as Severity, sources: [...new Set(body.sources as string[])], ...(body.projectMinScore === undefined ? {} : { projectMinScore: body.projectMinScore as number }), ...(projectScoring ? { projectScoring } : {}) };
 }
 
 export function pageNumber(params: URLSearchParams) {

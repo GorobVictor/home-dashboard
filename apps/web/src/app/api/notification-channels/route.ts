@@ -6,5 +6,5 @@ export async function GET(request: NextRequest) {
   return notificationRoute(request, false, listNotificationChannels);
 }
 export async function POST(request: NextRequest) {
-  return notificationRoute(request, true, async () => saveNotificationChannel(parseChannel(await notificationBody(request))));
+  return notificationRoute(request, true, async () => saveNotificationChannel(parseChannel(await notificationBody(request, 16384))));
 }

@@ -19,11 +19,33 @@ test("Freelancehunt client sends configured skill IDs and normalizes project dat
     assert.match(requestedUrl, /filter%5Bskill_id%5D=103%2C120/);
     assert.deepEqual(projects[0], {
       id: 123, name: "Build dashboard", description: "A small dashboard", url: "https://freelancehunt.com/project/123.html",
-      budgetAmount: 5000, budgetCurrency: "UAH", skills: ["TypeScript"], publishedAt: new Date("2026-10-15T10:00:00+00:00"),
+      budgetAmount: 5000, budgetCurrency: "UAH", skills: ["TypeScript"], skillIds: [103], categories: [], publishedAt: new Date("2026-10-15T10:00:00+00:00"),
     });
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("project details use a separate no-store request and narrow optional fields", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async (input, options) => {
+    calls++;
+    assert.equal(String(input), "https://api.freelancehunt.com/v2/projects/123");
+    assert.equal(options?.cache, "no-store");
+    assert.equal(new Headers(options?.headers).get("Authorization"), "Bearer secret");
+    return Response.json({ data: { id: 123, attributes: { name: "Fresh title", description: "Current description", budget: { amount: 8000, currency: "UAH" }, skills: [{ id: 24, name: "C#" }], status: { name: "Open" }, bid_count: 7, expired_at: "2026-11-01T00:00:00Z" }, links: { self: { web: "javascript:alert(1)" } } } });
+  };
+  try {
+    const details = await new FreelancehuntClient("secret").getProject(123);
+    assert.equal(details.name, "Fresh title"); assert.equal(details.budgetAmount, 8000);
+    assert.equal(details.status, "Open"); assert.equal(details.bidCount, 7);
+    assert.equal(details.url, "https://freelancehunt.com/project/123.html");
+    await assert.rejects(new FreelancehuntClient("secret").getProject(-1), /invalid_project_id/);
+    assert.equal(calls, 1);
+    globalThis.fetch = async () => Response.json({ data: { id: 456, attributes: { name: "Wrong ID" } } });
+    await assert.rejects(new FreelancehuntClient("secret").getProject(123), /invalid_project_response/);
+  } finally { globalThis.fetch = originalFetch; }
 });
 
 test("Freelancehunt client rejects rate-limited responses", async () => {

@@ -2,13 +2,17 @@ import { randomUUID } from "node:crypto";
 import { getDatabase } from "./client";
 import { notifyChanged, lockEventKey, publishEventInTransaction } from "./events";
 import { acceptsSeverity, retryDelayMs, type Severity } from "./event-policy";
+import type { ScoringProfile } from "@home-dashboard/integrations/freelancehunt-rules";
+import type { Prisma } from "../generated/client/client";
 
-export interface ChannelInput { name: string; chatId: string; enabled: boolean; minSeverity: Severity; sources: string[] }
+export interface ChannelInput { name: string; chatId: string; enabled: boolean; minSeverity: Severity; sources: string[]; projectMinScore?: number; projectScoring?: ScoringProfile }
 export const listNotificationChannels = () => getDatabase().notificationChannel.findMany({ orderBy: { createdAt: "asc" } });
 
 export async function saveNotificationChannel(input: ChannelInput, id?: string) {
   return getDatabase().$transaction(async (tx) => {
-    const channel = id ? await tx.notificationChannel.update({ where: { id }, data: input }) : await tx.notificationChannel.create({ data: input });
+    const { projectScoring, ...rest } = input;
+    const data = { ...rest, ...(projectScoring ? { projectScoring: JSON.parse(JSON.stringify(projectScoring)) as Prisma.InputJsonValue } : {}) };
+    const channel = id ? await tx.notificationChannel.update({ where: { id }, data }) : await tx.notificationChannel.create({ data });
     // Pending work must never silently move to a different destination.
     if (id) await tx.notification.updateMany({ where: { channelId: id, status: "pending" }, data: { status: "cancelled" } });
     await notifyChanged(tx);

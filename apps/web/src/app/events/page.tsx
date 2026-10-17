@@ -10,7 +10,7 @@ import { DashboardLiveUpdates } from "../dashboard/live-updates";
 import { NotificationBell } from "@/components/notification-bell";
 
 export default async function EventsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  if (!await currentUser()) redirect("/login");
+  const user = await currentUser(); if (!user) redirect("/login");
   const raw = await searchParams;
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(raw)) if (typeof value === "string") query.set(key, value);
@@ -18,7 +18,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   try { filters = parseEventFilters(query); } catch { filters = null; }
   const result = filters ? await listEvents(filters) : null;
   const pageLink = (page: number) => { const next = new URLSearchParams(query); next.set("page", String(page)); return `/events?${next}`; };
-  return <div className="dashboard-shell min-h-screen"><main className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-8"><DashboardLiveUpdates />
+  return <div className="dashboard-shell min-h-screen"><main className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-8"><DashboardLiveUpdates userId={user.id} />
     <header className="flex flex-wrap items-center justify-between gap-4"><h1 className="text-2xl font-semibold">Журнал подій</h1><div className="flex items-center gap-4"><NotificationBell /><Link href="/dashboard" className="text-sm hover:underline">Dashboard</Link><Link href="/settings/notifications" className="text-sm hover:underline">Налаштування</Link></div></header>
     <form className="grid gap-3 rounded-xl border bg-card p-4 sm:grid-cols-2 lg:grid-cols-3">
       <label className="space-y-1 text-sm">Джерело<select name="source" defaultValue={query.get("source") ?? ""} className="h-9 w-full rounded-md border bg-background px-3"><option value="">Усі</option>{["marstek", "freelancehunt", "system"].map((s) => <option key={s}>{s}</option>)}</select></label>

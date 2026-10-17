@@ -8,6 +8,8 @@ export interface FreelancehuntProject {
   budgetAmount: number | null;
   budgetCurrency: string | null;
   skills: string[];
+  skillIds?: number[];
+  categories?: string[];
   publishedAt: Date | null;
 }
 
@@ -48,11 +50,25 @@ function number(value: unknown): number | null {
 function link(value: unknown, fallback: string): string {
   const record = object(value);
   const web = record && text(record.web, 2048);
-  return web ?? fallback;
+  if (web) {
+    try { const url = new URL(web); if (url.protocol === "https:" && url.hostname === "freelancehunt.com" && !url.username && !url.password) return url.href; } catch { /* Use canonical fallback. */ }
+  }
+  return fallback;
 }
 
 export class FreelancehuntClient {
   constructor(private readonly token: string, private readonly timeoutMs = 10_000) {}
+
+  async getProject(id: number): Promise<FreelancehuntProject & { status: string | null; bidCount: number | null; expiresAt: Date | null }> {
+    if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647) throw new Error("invalid_project_id");
+    const data = await this.request(`/projects/${id}`);
+    const project = this.toProject(data);
+    if (!project || project.id !== id) throw new Error("freelancehunt_invalid_project_response");
+    const attributes = object(object(data)?.attributes);
+    const status = object(attributes?.status);
+    const bids = number(attributes?.bid_count);
+    return { ...project, status: text(status?.name, 100), bidCount: bids !== null && Number.isSafeInteger(bids) && bids >= 0 ? bids : null, expiresAt: date(attributes?.expired_at) };
+  }
 
   async listProjects(skillIds: number[]): Promise<FreelancehuntProject[]> {
     const query = new URLSearchParams();
@@ -88,6 +104,7 @@ export class FreelancehuntClient {
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
       const response = await fetch(`${apiBaseUrl}${path}`, {
+        cache: "no-store",
         headers: { Authorization: `Bearer ${this.token}`, Accept: "application/json", "Accept-Language": "uk" },
         signal: controller.signal,
       });
@@ -113,13 +130,16 @@ export class FreelancehuntClient {
     const skills = Array.isArray(attributes.skills) ? attributes.skills.flatMap((skill) => {
       const item = object(skill); const skillName = item && text(item.name, 100); return skillName ? [skillName] : [];
     }) : [];
+    const skillIds = Array.isArray(attributes.skills) ? attributes.skills.flatMap((skill) => {
+      const id = number(object(skill)?.id); return id && Number.isSafeInteger(id) && id > 0 && id <= 1e6 ? [id] : [];
+    }) : [];
     const links = object(entry.links);
     return {
       id, name, description: text(attributes.description, 50_000),
       url: link(links?.self, `https://freelancehunt.com/project/${id}.html`),
       budgetAmount: budget ? number(budget.amount) : null,
       budgetCurrency: budget ? text(budget.currency, 8) : null,
-      skills, publishedAt: date(attributes.published_at) ?? date(attributes.created_at),
+      skills, skillIds: [...new Set(skillIds)], categories: [], publishedAt: date(attributes.published_at) ?? date(attributes.created_at),
     };
   }
 
