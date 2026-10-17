@@ -96,16 +96,21 @@ apps/
       api/auth/                       # login, logout, current-user endpoints
       api/freelancehunt/              # settings and skill catalogue routes
       api/marstek/                    # dashboard overview route
+      api/docker/                     # Docker status, history and guarded actions
       dashboard/                      # dashboard, charts, project dialog, live updates
       login/                          # login page/form
       settings/                       # Freelancehunt settings page/form
+      system/                         # Docker container monitoring UI
     src/server/                       # server-only auth, input parsing, dashboard service
+      docker.ts                       # Docker status and worker action client
     src/server.ts                     # custom Next + WebSocket server
     scripts/create-user.ts            # initial-user CLI
   worker/
     src/index.ts                      # process lifecycle and scheduling
     src/jobs/marstek-poll.ts          # testable device polling job
     src/jobs/freelancehunt-poll.ts    # testable Freelancehunt job
+    src/jobs/docker-poll.ts           # Docker Engine polling and metrics
+    src/docker-control.ts             # token-protected start/stop endpoint
 packages/
   database/
     prisma/schema.prisma              # Prisma schema
@@ -117,6 +122,9 @@ packages/
   integrations/
     src/marstek.ts                    # UDP client, response validation/mapping
     src/freelancehunt.ts              # API client, validation, Telegram client
+  docker-monitoring/
+    src/index.ts                      # Docker Engine socket client
+    src/metrics.ts                    # CPU, memory and network calculations
 docker/
   web.Dockerfile
   worker.Dockerfile
@@ -598,3 +606,11 @@ Done means applicable code is in right boundary, types/tests pass or gap is stat
 - Authenticated `GET/PUT /api/freelancehunt/workspace`, `POST /api/freelancehunt/presets`, `DELETE /api/freelancehunt/presets/[id]` and `PATCH /api/freelancehunt/projects/[id]` manage personal data; mutations require same-origin. Profiles/filters/channels use a bounded 16 KiB JSON body because they contain up to 40 rules. Notes allow up to 3,000 characters.
 - Authenticated `GET /api/freelancehunt/projects/[id]` requires an already synchronized external project ID, calls `FreelancehuntClient.getProject`, and returns no-store live details. It never writes live details into the database. The dialog renders stored data immediately and fetches current data separately with cancellation/retry/fallback. Scores explain the synchronized snapshot. Descriptions stay plain text; outgoing project URLs are validated as HTTPS Freelancehunt links.
 - `freelancehunt.integration.test.ts` requires a fresh disposable `FREELANCEHUNT_TEST_DATABASE_URL` ending in `_freelancehunt_test`, with committed migrations applied. It checks actual SQL filters, personal state persistence/isolation, presets, score recalculation, baseline/concurrent deduplication and notification thresholds. Default tests remain offline.
+
+## 19. Docker monitoring
+
+- `/system` monitors Docker containers only. Docker Desktop Linux-container metrics must never be labelled as Windows host metrics.
+- `packages/docker-monitoring` is the typed Docker Engine Unix-socket client. It exposes only list, inspect, one-shot stats, start and stop; never add a generic Docker proxy, CLI dependency, exec, delete, create or shell action.
+- Docker socket access is opt-in through `.env`: it maps `/dev/null` by default and uses `/var/run/docker.sock` only when Docker monitoring is enabled. Only `worker` receives that mount; `web` uses the worker's token-authenticated internal endpoint. `DOCKER_CONTROL_TOKEN` is secret and must never reach browser code, database data or logs. Keep `DOCKER_WORKER_USER=node` unless the mounted Docker Desktop socket denies it write access; `root` is a narrowly documented fallback for owner-only sockets and increases the impact of a worker compromise.
+- The worker retains raw Docker metrics for seven days and 5-minute rollups/actions/container tombstones for 90 days. It polls without overlap, tolerates Docker being unavailable, and must not prevent Marstek, Freelancehunt or notification jobs from running.
+- `docker` is a valid source for central notification channels. Docker state events are observations; avoid alerting on the first successful baseline or on an intentional dashboard-issued stop.

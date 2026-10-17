@@ -71,6 +71,20 @@ Opening a project immediately shows its synchronized data, marks it viewed, and 
 
 Repository integration tests require a fresh disposable database whose name ends in `_freelancehunt_test`, supplied through `FREELANCEHUNT_TEST_DATABASE_URL`; apply committed migrations first and run `node --import tsx --test packages/database/src/freelancehunt.integration.test.ts`. Default tests do not require a database.
 
+## Docker monitoring
+
+The optional `/system` page monitors Docker containers, including container CPU, memory and network counters. These metrics come from Docker's Linux environment and are not Windows host metrics. It stores raw snapshots for seven days and five-minute history for 90 days.
+
+Docker monitoring is controlled entirely through `.env`. Keep `DOCKER_MONITORING_ENABLED=false`, `DOCKER_CONTROL_ENABLED=false`, and `DOCKER_SOCKET_PATH=/dev/null` for the ordinary dashboard. To enable it, create a private `DOCKER_CONTROL_TOKEN` with at least 32 random characters, set both flags to `true`, and set `DOCKER_SOCKET_PATH=/var/run/docker.sock`. Set `DOCKER_SOCKET_GID` to the numeric group ID that owns the socket. `DOCKER_WORKER_USER` defaults to `node`; use `root` only if the mounted socket returns `EACCES` for `node`. Some Docker Desktop installations grant write access only to the socket owner, so a supplementary group alone cannot solve that case. Then rebuild the normal stack:
+
+```bash
+docker compose up -d --build
+```
+
+Only the worker receives the Docker socket. It exposes an internal, token-protected endpoint used by the authenticated web app for start and stop actions; the browser never sees the socket or token. Socket access still gives the worker broad Docker daemon authority, so run this only for trusted dashboard code. If Docker Desktop prevents the socket mount or the worker shows it as unavailable, verify the Docker Desktop socket permissions and do not enable an unauthenticated TCP Docker daemon.
+
+Start/stop works for every discovered container, including this dashboard. Stopping web, worker or PostgreSQL can make the page unavailable before the action result returns. Restart those services through Docker Desktop or `docker compose up -d`; do not rely on the dashboard to restore itself. Docker monitoring supports only start and stop: it does not expose exec, shell, restart, delete or arbitrary Docker API calls.
+
 ## Events and notifications
 
 The dashboard bell shows a personal inbox; read status belongs to the signed-in user. Open `/events` for the immutable event log with source, type, severity and UTC date filters (`GET /api/events/list`); `/api/events` remains reserved for WebSocket upgrades. `/settings/notifications` manages shared Telegram destinations, source filters, enable/disable switches and minimum severity (`info`, `warning`, `error`, `critical`). Any authenticated local user can manage these household channels and view delivery history. Tests bypass channel filters, require an enabled saved channel, and are limited to one per user every 30 seconds.
