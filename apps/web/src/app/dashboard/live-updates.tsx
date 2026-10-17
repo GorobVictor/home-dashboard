@@ -30,6 +30,7 @@ export function DashboardLiveUpdates({ userId }: { userId?: string }) {
           const message: unknown = JSON.parse(String(event.data));
           if (!message || typeof message !== "object" || !("type" in message)) return;
           if (message.type === "marstek.measurement.saved") refresh();
+          if (message.type === "docker.snapshot.saved" || message.type === "docker.action.changed") refresh();
           if (message.type === "notifications.changed") {
             window.dispatchEvent(new Event("notifications.changed"));
             refresh();

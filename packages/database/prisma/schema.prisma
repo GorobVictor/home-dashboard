@@ -13,6 +13,7 @@ model User {
   freelancehuntPreferences FreelancehuntPreferences?
   freelancehuntPresets FreelancehuntPreset[]
   freelancehuntProjects FreelancehuntProjectState[]
+  dockerActions DockerAction[]
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   firstName    String   @map("first_name") @db.VarChar(100)
   lastName     String   @map("last_name") @db.VarChar(100)
@@ -22,6 +23,108 @@ model User {
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("users")
+}
+
+model DockerEngine {
+  id String @id @default("default") @db.VarChar(32)
+  name String? @db.VarChar(255)
+  lastSeenAt DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  lastError String? @map("last_error") @db.VarChar(100)
+  containers DockerContainer[]
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  @@map("docker_engines")
+}
+
+model DockerContainer {
+  id String @id @db.VarChar(128)
+  engineId String @default("default") @map("engine_id") @db.VarChar(32)
+  engine DockerEngine @relation(fields: [engineId], references: [id], onDelete: Cascade)
+  name String @db.VarChar(255)
+  image String @db.VarChar(1024)
+  state String @db.VarChar(32)
+  health String @default("none") @db.VarChar(32)
+  composeProject String? @map("compose_project") @db.VarChar(255)
+  composeService String? @map("compose_service") @db.VarChar(255)
+  createdAtDocker DateTime? @map("created_at_docker") @db.Timestamptz(6)
+  startedAt DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz(6)
+  exitCode Int? @map("exit_code")
+  restartCount Int @default(0) @map("restart_count")
+  lastSeenAt DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  missingSince DateTime? @map("missing_since") @db.Timestamptz(6)
+  metrics DockerMetric[]
+  rollups DockerMetricRollup[]
+  actions DockerAction[]
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  @@index([engineId, lastSeenAt(sort: Desc)])
+  @@index([name])
+  @@map("docker_containers")
+}
+
+model DockerMetric {
+  id BigInt @id @default(autoincrement())
+  containerId String @map("container_id") @db.VarChar(128)
+  container DockerContainer @relation(fields: [containerId], references: [id], onDelete: Cascade)
+  sampledAt DateTime @map("sampled_at") @db.Timestamptz(6)
+  cpuPercent Float? @map("cpu_percent")
+  memoryUsageBytes BigInt? @map("memory_usage_bytes")
+  memoryWorkingSetBytes BigInt? @map("memory_working_set_bytes")
+  memoryLimitBytes BigInt? @map("memory_limit_bytes")
+  memoryPercent Float? @map("memory_percent")
+  networkRxBytes BigInt? @map("network_rx_bytes")
+  networkTxBytes BigInt? @map("network_tx_bytes")
+  networkRxPerSecond Float? @map("network_rx_per_second")
+  networkTxPerSecond Float? @map("network_tx_per_second")
+  blockReadBytes BigInt? @map("block_read_bytes")
+  blockWriteBytes BigInt? @map("block_write_bytes")
+  pids Int?
+  @@index([containerId, sampledAt(sort: Desc)])
+  @@index([sampledAt])
+  @@map("docker_metrics")
+}
+
+model DockerMetricRollup {
+  id BigInt @id @default(autoincrement())
+  containerId String @map("container_id") @db.VarChar(128)
+  container DockerContainer @relation(fields: [containerId], references: [id], onDelete: Cascade)
+  bucketAt DateTime @map("bucket_at") @db.Timestamptz(6)
+  cpuPercent Float? @map("cpu_percent")
+  memoryWorkingSetBytes BigInt? @map("memory_working_set_bytes")
+  networkRxPerSecond Float? @map("network_rx_per_second")
+  networkTxPerSecond Float? @map("network_tx_per_second")
+  @@unique([containerId, bucketAt])
+  @@index([bucketAt])
+  @@map("docker_metric_rollups")
+}
+
+model DockerMonitoringSettings {
+  id String @id @default("default") @db.VarChar(32)
+  enabled Boolean @default(true)
+  pollIntervalSeconds Int @default(10) @map("poll_interval_seconds")
+  stoppedAlertsEnabled Boolean @default(true) @map("stopped_alerts_enabled")
+  unhealthyAlertsEnabled Boolean @default(true) @map("unhealthy_alerts_enabled")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  @@map("docker_monitoring_settings")
+}
+
+model DockerAction {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestId String @map("request_id") @db.VarChar(64)
+  userId String @map("user_id") @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  containerId String @map("container_id") @db.VarChar(128)
+  container DockerContainer @relation(fields: [containerId], references: [id], onDelete: Cascade)
+  action String @db.VarChar(16)
+  status String @db.VarChar(16)
+  errorCode String? @map("error_code") @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz(6)
+  @@unique([userId, requestId])
+  @@index([containerId, status])
+  @@index([createdAt(sort: Desc)])
+  @@map("docker_actions")
 }
 
 enum EventSeverity {

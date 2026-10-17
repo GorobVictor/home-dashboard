@@ -7,6 +7,7 @@ COPY apps/web/package.json apps/web/package.json
 COPY apps/worker/package.json apps/worker/package.json
 COPY packages/database/package.json packages/database/package.json
 COPY packages/integrations/package.json packages/integrations/package.json
+COPY packages/docker-monitoring/package.json packages/docker-monitoring/package.json
 RUN npm ci
 COPY . .
 RUN npm run db:generate && npm run build --workspace @home-dashboard/web
@@ -25,6 +26,7 @@ RUN npm ci --omit=dev
 COPY --from=build --chown=node:node /app/apps/web ./apps/web
 COPY --from=build --chown=node:node /app/packages/database ./packages/database
 COPY --from=build --chown=node:node /app/packages/integrations ./packages/integrations
+COPY --from=build --chown=node:node /app/packages/docker-monitoring ./packages/docker-monitoring
 USER node
 EXPOSE 3000
 CMD ["npm", "run", "start", "--workspace", "@home-dashboard/web"]

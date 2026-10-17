@@ -8,41 +8,40 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { FreelancehuntScoringEditor } from "@/components/freelancehunt-scoring-editor";
 import { initialScoringProfiles } from "@home-dashboard/integrations/freelancehunt-rules";
+import { FreelancehuntSelect } from "../../dashboard/freelancehunt-select";
 
 const emptyChannel: ChannelInput = { name: "", chatId: "", enabled: true, minSeverity: "info", sources: [] };
+const newChannel = (): ChannelInput => ({ ...emptyChannel, projectMinScore: 0, projectScoring: initialScoringProfiles[0].profile });
+
 export function ChannelForm({ channel }: { channel?: ChannelInput & { id: string } }) {
   const router = useRouter();
-  const [values, setValues] = useState<ChannelInput>(channel ? { name: channel.name, chatId: channel.chatId, enabled: channel.enabled, minSeverity: channel.minSeverity, sources: channel.sources, projectMinScore: channel.projectMinScore ?? 0, projectScoring: channel.projectScoring ?? initialScoringProfiles[0].profile } : { ...emptyChannel, projectMinScore: 0, projectScoring: initialScoringProfiles[0].profile });
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState(false);
+  const [values, setValues] = useState<ChannelInput>(channel ? { name: channel.name, chatId: channel.chatId, enabled: channel.enabled, minSeverity: channel.minSeverity, sources: channel.sources, projectMinScore: channel.projectMinScore ?? 0, projectScoring: channel.projectScoring ?? initialScoringProfiles[0].profile } : newChannel());
+  const [busy, setBusy] = useState(false), [message, setMessage] = useState(""), [error, setError] = useState(false);
+  const prefix = channel?.id ?? "new";
+
   async function action(kind: "save" | "test" | "disable") {
     setBusy(true); setMessage(""); setError(false);
     try {
-      const response = await fetch(`/api/notification-channels${channel ? `/${channel.id}` : ""}${kind === "test" ? "/test" : ""}`, {
-        method: kind === "test" ? "POST" : kind === "disable" ? "DELETE" : channel ? "PUT" : "POST",
-        headers: { "content-type": "application/json" }, ...(kind === "save" ? { body: JSON.stringify(values) } : {}),
-      });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error === "test_rate_limited" ? "Зачекайте 30 секунд перед наступним тестом." : data.error === "channel_already_exists" ? "Канал із таким chat ID вже існує." : data.error === "channel_disabled" ? "Увімкніть і збережіть канал перед тестуванням." : "Не вдалося виконати дію. Перевірте дані та повторіть.");
-      }
-      setMessage(kind === "test" ? "Тест поставлено на доставку. Результат з’явиться в історії." : "Збережено.");
-      if (!channel) setValues(emptyChannel);
+      const response = await fetch(`/api/notification-channels${channel ? `/${channel.id}` : ""}${kind === "test" ? "/test" : ""}`, { method: kind === "test" ? "POST" : kind === "disable" ? "DELETE" : channel ? "PUT" : "POST", headers: { "content-type": "application/json" }, ...(kind === "save" ? { body: JSON.stringify(values) } : {}) });
+      if (!response.ok) { const data = await response.json(); throw new Error(data.error === "test_rate_limited" ? "Wait 30 seconds before sending another test." : data.error === "channel_already_exists" ? "A channel with this chat ID already exists." : data.error === "channel_disabled" ? "Enable and save the channel before testing." : "The action could not be completed. Check the values and try again."); }
+      setMessage(kind === "test" ? "The test notification has been queued. Its result will appear in delivery history." : "Saved.");
+      if (!channel) setValues(newChannel());
       router.refresh();
-    } catch (reason) { setError(true); setMessage(reason instanceof Error ? reason.message : "Помилка запиту."); }
+    } catch (reason) { setError(true); setMessage(reason instanceof Error ? reason.message : "Request failed."); }
     finally { setBusy(false); }
   }
-  const prefix = channel?.id ?? "new";
-  return <form onSubmit={(event) => { event.preventDefault(); void action("save"); }} className="space-y-4 rounded-xl border bg-card p-4 sm:p-5">
-    <h2 className="font-semibold">{channel ? channel.name : "Додати Telegram-канал"}</h2>
-    <div className="grid gap-4 sm:grid-cols-2"><label className="space-y-1 text-sm">Назва<Input required maxLength={100} value={values.name} onChange={(event) => setValues({ ...values, name: event.target.value })} /></label><label className="space-y-1 text-sm">Chat ID<Input required maxLength={100} placeholder="-1001234567890 або @channel" value={values.chatId} onChange={(event) => setValues({ ...values, chatId: event.target.value })} pattern="(-?[0-9]{1,20}|@[a-zA-Z][a-zA-Z0-9_]{4,31})" /></label>
-      <label className="space-y-1 text-sm">Мінімальна важливість<select className="h-9 w-full rounded-md border bg-background px-3" value={values.minSeverity} onChange={(event) => setValues({ ...values, minSeverity: event.target.value as ChannelInput["minSeverity"] })}>{["info", "warning", "error", "critical"].map((severity) => <option key={severity}>{severity}</option>)}</select></label>
-      <div className="flex items-center gap-3 self-end py-2"><Switch id={`${prefix}-enabled`} checked={values.enabled} onCheckedChange={(enabled) => setValues({ ...values, enabled })} /><label htmlFor={`${prefix}-enabled`} className="text-sm">Сповіщення увімкнено</label></div>
-    </div>
-    <fieldset><legend className="mb-2 text-sm">Джерела · порожній вибір означає всі</legend><div className="flex flex-wrap gap-4">{["marstek", "freelancehunt", "system"].map((source) => <label key={source} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={values.sources.includes(source)} onChange={(event) => setValues({ ...values, sources: event.target.checked ? [...values.sources, source] : values.sources.filter((s) => s !== source) })} />{source}</label>)}</div></fieldset>
-    <details><summary className="cursor-pointer text-sm font-medium">Релевантність проєктів Freelancehunt</summary><div className="mt-3 space-y-3"><label className="block max-w-xs space-y-1 text-sm">Надсилати проєкти з оцінкою ≥<Input type="number" min={0} max={100} required value={values.projectMinScore ?? 0} onChange={(e) => setValues({ ...values, projectMinScore: Number(e.target.value) })} /></label><p className="text-xs text-muted-foreground">Лише для нових проєктів. Інші події та тестові повідомлення не залежать від цієї оцінки. Профіль цього каналу незалежний від особистих профілів.</p><FreelancehuntScoringEditor value={values.projectScoring ?? initialScoringProfiles[0].profile} onChange={(projectScoring) => setValues({ ...values, projectScoring })} disabled={busy} /></div></details>
-    <div className="flex flex-wrap gap-2"><Button type="submit" disabled={busy}>{busy ? "Обробка…" : "Зберегти"}</Button>{channel && <><Button type="button" variant="outline" disabled={busy || !channel.enabled} onClick={() => void action("test")}>Тестове сповіщення</Button><Button type="button" variant="ghost" disabled={busy || !channel.enabled} onClick={() => void action("disable")}>Вимкнути</Button></>}</div>
+
+  return <form onSubmit={(event) => { event.preventDefault(); void action("save"); }} className="space-y-6 rounded-2xl border bg-card p-5 sm:p-6">
+    <header><h2 className="text-lg font-semibold">{channel ? channel.name : "Add a Telegram channel"}</h2><p className="mt-1 text-sm text-muted-foreground">This channel receives only selected events at or above the chosen severity.</p></header>
+    <section className="grid gap-5 lg:grid-cols-2">
+      <label className="grid gap-2 text-sm font-medium">Name<Input className="h-10" required maxLength={100} value={values.name} onChange={(event) => setValues({ ...values, name: event.target.value })} /></label>
+      <label className="grid gap-2 text-sm font-medium">Chat ID<Input className="h-10" required maxLength={100} placeholder="-1001234567890 or @channel" value={values.chatId} onChange={(event) => setValues({ ...values, chatId: event.target.value })} pattern="(-?[0-9]{1,20}|@[a-zA-Z][a-zA-Z0-9_]{4,31})" /></label>
+      <FreelancehuntSelect label="Minimum severity" value={values.minSeverity} onValueChange={(minSeverity) => setValues({ ...values, minSeverity: minSeverity as ChannelInput["minSeverity"] })} options={["info", "warning", "error", "critical"].map((value) => ({ value, label: value }))} />
+      <div className="flex h-10 items-center gap-3 rounded-md border bg-input/30 px-3 lg:mt-7"><Switch id={`${prefix}-enabled`} checked={values.enabled} onCheckedChange={(enabled) => setValues({ ...values, enabled })} /><label htmlFor={`${prefix}-enabled`} className="text-sm font-medium">Notifications enabled</label></div>
+    </section>
+    <fieldset className="rounded-xl border bg-muted/20 p-4"><legend className="px-1 text-sm font-medium">Sources</legend><p className="mb-3 text-xs text-muted-foreground">Leave all sources unchecked to receive every source.</p><div className="flex flex-wrap gap-2">{["marstek", "freelancehunt", "system", "docker"].map((source) => <label key={source} className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm"><input type="checkbox" checked={values.sources.includes(source)} onChange={(event) => setValues({ ...values, sources: event.target.checked ? [...values.sources, source] : values.sources.filter((item) => item !== source) })} />{source}</label>)}</div></fieldset>
+    <details className="rounded-xl border bg-muted/20 p-4"><summary className="cursor-pointer text-sm font-medium">Freelancehunt project relevance</summary><div className="mt-4 space-y-4"><label className="grid max-w-xs gap-2 text-sm font-medium">Send projects scored at least<Input className="h-10" type="number" min={0} max={100} required value={values.projectMinScore ?? 0} onChange={(event) => setValues({ ...values, projectMinScore: Number(event.target.value) })} /></label><p className="text-xs text-muted-foreground">This applies to new projects only. Other events and test notifications ignore this score. The channel profile is independent from personal profiles.</p><FreelancehuntScoringEditor value={values.projectScoring ?? initialScoringProfiles[0].profile} onChange={(projectScoring) => setValues({ ...values, projectScoring })} disabled={busy} /></div></details>
+    <footer className="flex flex-wrap items-center gap-2 border-t pt-5"><Button type="submit" disabled={busy}>{busy ? "Working…" : "Save"}</Button>{channel && <><Button type="button" variant="outline" disabled={busy || !channel.enabled} onClick={() => void action("test")}>Send test notification</Button><Button type="button" variant="ghost" disabled={busy || !channel.enabled} onClick={() => void action("disable")}>Disable</Button></>}</footer>
     {message && <p role={error ? "alert" : "status"} className={`text-sm ${error ? "text-destructive" : "text-muted-foreground"}`}>{message}</p>}
   </form>;
 }
