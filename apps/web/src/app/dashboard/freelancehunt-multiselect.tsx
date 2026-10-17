@@ -36,7 +36,7 @@ export function FreelancehuntMultiselect({ name, label, placeholder, options, de
   function toggle(value: string) {
     setSelected((current) => current.includes(value) ? current.filter((item) => item !== value) : current.length < limit ? [...current, value] : current);
   }
-  return <div className="flex min-w-0 flex-col gap-2 sm:col-span-2">
+  return <div className="col-span-2 flex min-w-0 flex-col gap-2">
     <p id={labelId} className="text-sm font-medium">{label}</p>
     {selected.map((value) => <input key={value} type="hidden" name={name} value={value} />)}
     <Popover onOpenChange={(open) => { if (!open) { setQuery(""); setOnlySelected(false); } }}>

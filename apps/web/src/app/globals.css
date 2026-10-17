@@ -126,6 +126,7 @@
   }
   html {
     @apply font-sans;
+    scroll-padding-top: 5rem;
   }
 }
 
@@ -159,6 +160,22 @@
 
   .dashboard-theme [data-slot="button"][data-size^="icon"] {
     min-width: 2.75rem;
+  }
+
+  .dashboard-theme input,
+  .dashboard-theme select,
+  .dashboard-theme textarea {
+    min-width: 0;
+    max-width: 100%;
+    font-size: 1rem;
+  }
+
+  .dashboard-theme select {
+    min-height: 2.75rem;
+  }
+
+  .dashboard-theme input[type="date"] {
+    appearance: none;
   }
 }
 

@@ -49,19 +49,19 @@ export function LoginForm() {
   }
 
   return (
-    <main className="dashboard-shell flex min-h-screen items-center justify-center px-4 py-10 sm:py-16">
-      <div className="w-full max-w-sm space-y-7">
+    <main className="dashboard-shell flex min-h-dvh items-center justify-center px-3 py-6 sm:px-4 sm:py-16">
+      <div className="w-full max-w-sm space-y-5 sm:space-y-7">
         <div className="flex items-center justify-center gap-3">
           <div className="grid size-11 shrink-0 place-items-center rounded-2xl border border-emerald-300/15 bg-emerald-400/10"><BatteryFull aria-hidden="true" className="size-5 text-emerald-300" /></div>
           <div><p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">Home Dashboard</p><p className="mt-1 text-sm text-muted-foreground">Energy & workspace</p></div>
         </div>
-        <Card className="rounded-2xl py-7 [--card-spacing:--spacing(6)] sm:[--card-spacing:--spacing(7)]">
+        <Card className="rounded-2xl py-5 [--card-spacing:--spacing(4)] sm:py-7 sm:[--card-spacing:--spacing(7)]">
           <CardHeader className="pb-2">
             <h1 className="text-2xl font-semibold tracking-tight">Welcome back.</h1>
             <CardDescription className="mt-1">Sign in to your private dashboard.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={submit} className="space-y-5" aria-busy={pending}>
+            <form onSubmit={submit} className="space-y-4 sm:space-y-5" aria-busy={pending}>
               <div className="space-y-2">
                 <label htmlFor="login" className="text-sm font-medium">Login</label>
                 <Input id="login" name="login" autoComplete="username" required minLength={3} maxLength={50} placeholder="Your login" className="h-11 rounded-xl px-3.5" />

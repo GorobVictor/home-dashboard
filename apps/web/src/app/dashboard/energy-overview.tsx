@@ -13,11 +13,11 @@ export function EnergyOverview({ battery, flow }: { battery: ReactNode; flow: Re
     if (element) element.scrollTo({ left: index === 0 ? 0 : element.scrollWidth - element.clientWidth });
   }
 
-  return <section aria-label="Live energy overview" className="flex min-w-0 flex-col gap-4">
+  return <section aria-label="Live energy overview" className="flex min-w-0 flex-col gap-2 sm:gap-4">
     <div ref={viewport} onScroll={(event) => {
       const element = event.currentTarget;
       setActive(element.scrollLeft > (element.scrollWidth - element.clientWidth) / 2 ? 1 : 0);
-    }} className="grid snap-x snap-mandatory auto-cols-[100%] grid-flow-col gap-4 overflow-x-auto overscroll-x-contain p-px motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:snap-none lg:grid-flow-row lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:overflow-visible">
+    }} className="grid snap-x snap-mandatory auto-cols-[100%] grid-flow-col gap-3 overflow-x-auto overscroll-x-contain p-px motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-4 lg:snap-none lg:grid-flow-row lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:overflow-visible">
       <div role="group" aria-label="Battery" className="min-w-0 snap-start snap-always scroll-mx-1 [&>div]:h-full">{battery}</div>
       <div role="group" aria-label="Energy flow" className="min-w-0 snap-start snap-always scroll-mx-1 [&>div]:h-full">{flow}</div>
     </div>
