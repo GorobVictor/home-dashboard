@@ -62,16 +62,16 @@ export async function markDockerUnavailable() {
 }
 
 export async function markMissingDockerContainers(ids: string[], seenAt = now()) {
-  await getDatabase().dockerContainer.updateMany({ where: { lastSeenAt: { lt: seenAt }, id: { notIn: ids } }, data: { missingSince: seenAt } });
+  await getDatabase().dockerContainer.updateMany({ where: { missingSince: null, lastSeenAt: { lt: seenAt }, id: { notIn: ids } }, data: { missingSince: seenAt } });
 }
 
 export async function listDockerContainers(page = 1, query = "", state?: string) {
-  const db = getDatabase(); const where = { ...(query ? { OR: [{ name: { contains: query, mode: "insensitive" as const } }, { image: { contains: query, mode: "insensitive" as const } }] } : {}), ...(state ? { state } : {}) };
+  const db = getDatabase(); const where = { missingSince: null, ...(query ? { OR: [{ name: { contains: query, mode: "insensitive" as const } }, { image: { contains: query, mode: "insensitive" as const } }] } : {}), ...(state ? { state } : {}) };
   const [items, total] = await Promise.all([db.dockerContainer.findMany({ where, orderBy: [{ name: "asc" }], skip: (page - 1) * 30, take: 30, include: { metrics: { orderBy: { sampledAt: "desc" }, take: 1 }, actions: { orderBy: { createdAt: "desc" }, take: 1 } } }), db.dockerContainer.count({ where })]);
   return { items, total, page, pageSize: 30 };
 }
 export async function getDockerStatus() {
-  const [engine, settings, total, running, unhealthy] = await Promise.all([getDatabase().dockerEngine.findUnique({ where: { id: "default" } }), getDockerMonitoringSettings(), getDatabase().dockerContainer.count(), getDatabase().dockerContainer.count({ where: { state: "running" } }), getDatabase().dockerContainer.count({ where: { health: "unhealthy" } })]);
+  const [engine, settings, total, running, unhealthy] = await Promise.all([getDatabase().dockerEngine.findUnique({ where: { id: "default" } }), getDockerMonitoringSettings(), getDatabase().dockerContainer.count({ where: { missingSince: null } }), getDatabase().dockerContainer.count({ where: { missingSince: null, state: "running" } }), getDatabase().dockerContainer.count({ where: { missingSince: null, health: "unhealthy" } })]);
   return { engine, settings, total, running, unhealthy };
 }
 export async function listDockerHistory(containerId: string, hours: number) {
