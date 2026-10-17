@@ -13,7 +13,7 @@ export default async function NotificationSettings({ searchParams }: { searchPar
   const requested = Number(params.page ?? 1);
   const page = Number.isInteger(requested) && requested >= 1 && requested <= 10000 ? requested : 1;
   const [channels, history] = await Promise.all([listNotificationChannels(), listNotificationDeliveries(undefined, page)]);
-  return <div className="dashboard-shell min-h-screen"><main className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-8"><DashboardLiveUpdates userId={user.id} />
+  return <div className="dashboard-shell min-h-screen"><main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-5 sm:px-8 sm:py-8 lg:py-9"><DashboardLiveUpdates userId={user.id} />
     <header className="flex flex-wrap items-center justify-between gap-4"><h1 className="text-2xl font-semibold">Notifications and Telegram</h1><nav className="flex gap-4 text-sm"><Link href="/settings" className="hover:underline">Settings</Link><Link href="/events" className="hover:underline">Events</Link><Link href="/dashboard" className="hover:underline">Dashboard</Link></nav></header>
     <p className="text-sm text-muted-foreground">Channels are shared by this home dashboard. Configure the bot token on the server through TELEGRAM_BOT_TOKEN in the worker. Add the bot to a chat or channel with permission to send messages. A test is sent after saving a channel and bypasses severity and source filters.</p>
     {channels.length === 0 && <p className="rounded-xl border p-4 text-muted-foreground">No channels are configured yet. Dashboard notifications work independently of Telegram.</p>}

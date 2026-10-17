@@ -9,7 +9,7 @@ import { FreelancehuntSettingsForm } from "./freelancehunt-settings-form";
 export default async function SettingsPage() {
   if (!await currentUser()) redirect("/login");
   const settings = await getFreelancehuntSettings();
-  return <div className="dashboard-shell min-h-screen"><main className="mx-auto w-full max-w-5xl space-y-7 px-4 py-5 sm:px-8 sm:py-8 lg:py-9">
+  return <div className="dashboard-shell min-h-screen"><main className="mx-auto w-full max-w-7xl space-y-7 px-4 py-5 sm:px-8 sm:py-8 lg:py-9">
     <header className="flex flex-wrap items-center justify-between gap-4">
       <div className="flex items-center gap-3">
         <div className="grid size-11 shrink-0 place-items-center rounded-2xl border border-emerald-300/15 bg-emerald-400/10"><BatteryFull aria-hidden="true" className="size-5 text-emerald-300" /></div>

@@ -151,6 +151,17 @@
   background-image: radial-gradient(ellipse at 15% 0%, oklch(0.76 0.16 160 / 5%), transparent 40%);
 }
 
+@media (max-width: 639px) {
+  .dashboard-theme [data-slot="button"],
+  .dashboard-theme [data-slot="input"] {
+    min-height: 2.75rem;
+  }
+
+  .dashboard-theme [data-slot="button"][data-size^="icon"] {
+    min-width: 2.75rem;
+  }
+}
+
 .energy-eyebrow {
   @apply text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground;
 }

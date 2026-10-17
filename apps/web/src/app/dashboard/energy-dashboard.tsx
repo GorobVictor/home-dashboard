@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { getMarstekDashboard } from "@/server/marstek/dashboard";
 import { FadeValue } from "./fade-value";
+import { EnergyOverview } from "./energy-overview";
 import { MarstekCharts } from "./marstek-charts";
 import { RangeControls } from "./range-controls";
 
@@ -24,7 +25,7 @@ export function EnergyDashboard({ dashboard, rangeQuery }: { dashboard: Dashboar
     return <Card className="border-dashed"><CardHeader><CardTitle>No batteries configured</CardTitle><CardDescription>Add devices to MARSTEK_DEVICES and start the worker to collect readings.</CardDescription></CardHeader></Card>;
   }
 
-  return <div className="space-y-7">
+  return <div className="flex min-w-0 flex-col gap-8">
     {dashboard.devices.length > 1 && <nav aria-label="Select battery" className="flex flex-wrap gap-2">
       {dashboard.devices.map((item) => {
         const params = new URLSearchParams(rangeQuery);
@@ -35,10 +36,7 @@ export function EnergyDashboard({ dashboard, rangeQuery }: { dashboard: Dashboar
       })}
     </nav>}
 
-    <section aria-label="Live energy overview" className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-      <BatteryOverview device={device} latest={selected.latest} />
-      <PowerFlow device={device} latest={selected.latest} />
-    </section>
+    <EnergyOverview battery={<BatteryOverview device={device} latest={selected.latest} />} flow={<PowerFlow device={device} latest={selected.latest} />} />
 
     {dashboard.devices.length > 1 && <section aria-label="All batteries summary" className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-border/70 bg-card/50 px-5 py-3 text-sm">
       <span className="inline-flex items-center gap-2 text-muted-foreground"><Activity className="size-4" />All batteries</span>
@@ -50,7 +48,7 @@ export function EnergyDashboard({ dashboard, rangeQuery }: { dashboard: Dashboar
 
     {!selected.online && <p role="status" className="flex items-center gap-2 rounded-xl border border-amber-400/20 bg-amber-400/5 px-4 py-3 text-sm text-amber-200"><BatteryWarning className="size-4 shrink-0" />No recent reading. Showing the last known battery state; historical data remains available.</p>}
 
-    <section aria-labelledby="energy-history-heading" className="space-y-4">
+    <section aria-labelledby="energy-history-heading" className="flex min-w-0 flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><h2 id="energy-history-heading" className="text-xl font-semibold tracking-tight">Energy history</h2><p className="mt-1 text-sm text-muted-foreground">A closer look at {device.name} over time.</p></div>
         <span className="rounded-full border px-3 py-1 text-xs text-muted-foreground">{dashboard.hours <= 24 ? "Hourly" : "Daily"} energy totals</span>
@@ -72,7 +70,7 @@ function BatteryOverview({ device, latest }: { device: Device; latest: Latest })
   const stateColor = !device.online || device.flow === "unknown" ? "text-muted-foreground bg-muted" : device.flow === "charging" ? "text-emerald-300 bg-emerald-400/10" : device.flow === "discharging" ? "text-sky-300 bg-sky-400/10" : "text-muted-foreground bg-muted";
   const duration = estimate == null ? "Estimate unavailable" : `${Math.floor(estimate / 1440)} days ${Math.floor(estimate % 1440 / 60)} hours ${estimate % 60} minutes`;
 
-  return <Card className="energy-battery-card min-w-0 rounded-2xl py-6 [--card-spacing:--spacing(6)]">
+  return <Card className="energy-battery-card min-w-0 rounded-2xl [--card-spacing:--spacing(4)] sm:[--card-spacing:--spacing(6)]">
     <CardHeader>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><p className="energy-eyebrow">Your battery</p><h2 className="mt-1.5 text-2xl font-semibold tracking-tight">{device.name}</h2></div>
