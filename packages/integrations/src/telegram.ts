@@ -4,12 +4,20 @@ export class TelegramDeliveryError extends Error {
   }
 }
 
-export async function deliverTelegramMessage(token: string, chatId: string, text: string, request: typeof fetch = fetch): Promise<string> {
+export interface TelegramHtmlMessage { text: string; parseMode: "HTML" }
+
+export async function deliverTelegramMessage(token: string, chatId: string, message: string | TelegramHtmlMessage, request: typeof fetch = fetch): Promise<string> {
   if (!token) throw new TelegramDeliveryError("telegram_not_configured", false);
+  const html = typeof message !== "string";
+  // Formatted messages must be bounded by the formatter: slicing could break a
+  // tag, entity or link. Keep legacy plain-text callers compatible.
+  let text = html ? message.text : message.slice(0, 4096);
+  if (!html && /[\uD800-\uDBFF]$/.test(text)) text = text.slice(0, -1);
+  if (!text.trim() || text.length > 4096) throw new TelegramDeliveryError("telegram_invalid_message", false);
   try {
     const response = await request(`https://api.telegram.org/bot${encodeURIComponent(token)}/sendMessage`, {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: text.slice(0, 4096), link_preview_options: { is_disabled: true } }), signal: AbortSignal.timeout(10_000),
+      body: JSON.stringify({ chat_id: chatId, text, ...(html ? { parse_mode: message.parseMode } : {}), link_preview_options: { is_disabled: true } }), signal: AbortSignal.timeout(10_000),
     });
     const body: unknown = await response.json().catch(() => null);
     const data = body && typeof body === "object" ? body as Record<string, unknown> : {};

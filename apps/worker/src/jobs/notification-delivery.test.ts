@@ -4,7 +4,18 @@ import { TelegramDeliveryError } from "@home-dashboard/integrations";
 import { processNotifications, type DeliveryOperations } from "./notification-delivery";
 
 function fixture() {
-  const work = { skipped: false, notification: { id: "notification", event: { title: "Low battery", severity: "warning", occurredAt: new Date(), payload: {} } }, delivery: { id: "attempt", attempt: 1 }, chatId: "-123" } as Awaited<ReturnType<DeliveryOperations["claim"]>>;
+  const now = new Date("2026-10-17T10:05:06Z");
+  const work = {
+    skipped: false,
+    notification: {
+      id: "notification", eventId: "event", channelId: "channel", channel: null, userId: null,
+      recipientKey: "channel:channel", readAt: null, status: "processing", attemptCount: 1,
+      nextAttemptAt: now, leaseUntil: now, createdAt: now,
+      event: { id: "event", deduplicationKey: null, source: "marstek", type: "marstek.battery_low", title: "Low battery", severity: "warning", occurredAt: now, payload: { deviceId: "venus-e3-1", socPercent: 15 } },
+    },
+    delivery: { id: "attempt", notificationId: "notification", attempt: 1, status: "processing", destination: "-123", startedAt: now, finishedAt: null, errorCode: null, externalMessageId: null },
+    chatId: "-123",
+  } satisfies Awaited<ReturnType<DeliveryOperations["claim"]>>;
   let pending = true;
   let sent = 0;
   const results: Parameters<DeliveryOperations["finish"]>[1][] = [];
@@ -22,6 +33,23 @@ test("completed deliveries are not sent again on the next processing cycle", asy
   await processNotifications(f.operations, "secret");
   assert.equal(f.sent(), 1);
   assert.deepEqual(f.results, [{ messageId: "message-1" }]);
+});
+
+test("delivery passes formatted event details to the configured chat", async () => {
+  const f = fixture();
+  f.operations.send = async (token, chatId, message) => {
+    assert.equal(token, "secret");
+    assert.equal(chatId, "-123");
+    assert.notEqual(typeof message, "string");
+    if (typeof message !== "string") {
+      assert.equal(message.parseMode, "HTML");
+      assert.match(message.text, /<b>🪫 Низький заряд батареї<\/b>/);
+      assert.match(message.text, /Заряд: <b>15%<\/b>/);
+    }
+    return "formatted-message";
+  };
+  await processNotifications(f.operations, "secret");
+  assert.deepEqual(f.results, [{ messageId: "formatted-message" }]);
 });
 
 test("delivery failures are persisted with retry metadata and no raw error details", async () => {

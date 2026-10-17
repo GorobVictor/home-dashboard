@@ -1,5 +1,6 @@
 import { claimNotification, finishNotification } from "@home-dashboard/database";
 import { deliverTelegramMessage, TelegramDeliveryError } from "@home-dashboard/integrations";
+import { formatNotificationMessage } from "./notification-message";
 
 export interface DeliveryOperations {
   claim: typeof claimNotification;
@@ -16,11 +17,9 @@ export async function processNotifications(operations: DeliveryOperations = defa
     if (!work) return;
     if (work.skipped) continue;
     const { event } = work.notification;
-    const payload = event.payload;
-    const url = payload && typeof payload === "object" && !Array.isArray(payload) && typeof payload.url === "string" && /^https:\/\/freelancehunt\.com\//.test(payload.url) ? payload.url : "";
     let result: Parameters<typeof finishNotification>[1];
     try {
-      const messageId = await operations.send(token, work.chatId, `[${event.severity.toUpperCase()}] ${event.title}\n${event.occurredAt.toISOString()}${url ? `\n${url}` : ""}`);
+      const messageId = await operations.send(token, work.chatId, formatNotificationMessage(event));
       result = { messageId };
     } catch (error) {
       const failure = error instanceof TelegramDeliveryError ? error : new TelegramDeliveryError("telegram_delivery_failed");
