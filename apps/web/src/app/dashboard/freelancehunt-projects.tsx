@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LayoutGrid, List } from "lucide-react";
+import { Bookmark, Check, EyeOff, LayoutGrid, List, MoreHorizontal } from "lucide-react";
 import type { ScoreReason, ProjectStatePatch } from "@home-dashboard/integrations/freelancehunt-rules";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useSavedView } from "@/components/use-saved-view";
+import { viewPreferences, type SavedView } from "@/lib/view-preferences";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export interface FreelancehuntProjectView {
   id: number; name: string; description: string | null; url: string;
@@ -22,18 +24,26 @@ interface LiveProject {
 }
 type ProjectView = "cards" | "list";
 
-export function FreelancehuntProjects({ projects }: { projects: FreelancehuntProjectView[] }) {
+export function FreelancehuntProjects({ projects, initialView }: { projects: FreelancehuntProjectView[]; initialView: SavedView }) {
   const [active, setActive] = useState<FreelancehuntProjectView | null>(null);
-  const [view, changeView] = useSavedView("home-dashboard:freelancehunt-project-view");
+  const [view] = useSavedView(viewPreferences.projects, initialView);
   const visible = active && !projects.some((p) => p.id === active.id) ? [...projects, active] : projects;
   if (!visible.length) return <Card className="border-dashed"><CardContent className="py-8 text-sm text-muted-foreground">No projects match the selected filters. Change the filters or enable Freelancehunt monitoring in Settings.</CardContent></Card>;
-  return <section className="space-y-3"><div className="flex justify-end"><div className="inline-flex rounded-md border p-1" role="group" aria-label="Project view"><Button type="button" size="icon" variant={view === "cards" ? "secondary" : "ghost"} aria-label="Cards" aria-pressed={view === "cards"} onClick={() => changeView("cards")}><LayoutGrid className="size-4" /></Button><Button type="button" size="icon" variant={view === "list" ? "secondary" : "ghost"} aria-label="List" aria-pressed={view === "list"} onClick={() => changeView("list")}><List className="size-4" /></Button></div></div>{view === "list" && <div className="hidden grid-cols-[minmax(0,1.7fr)_minmax(120px,0.45fr)_minmax(150px,0.6fr)_minmax(180px,0.8fr)] gap-4 px-5 text-xs font-medium text-muted-foreground lg:grid"><span>Project</span><span>Score</span><span>Budget</span><span>Published</span></div>}<div className={view === "cards" ? "grid gap-3 sm:grid-cols-2 xl:grid-cols-3" : "space-y-2"}>{visible.map((project) => <ProjectCard key={project.id} project={project} view={view} onActive={(open) => setActive(open ? project : null)} />)}</div></section>;
+  return <section aria-label={view === "list" ? "Project list" : "Project cards"} className="space-y-3"><div className={view === "cards" ? "grid gap-3 sm:grid-cols-2 xl:grid-cols-3" : "divide-y overflow-hidden rounded-xl border bg-card/50"}>{visible.map((project) => <ProjectCard key={project.id} project={project} view={view} onActive={(open) => setActive(open ? project : null)} />)}</div></section>;
 }
+export function ProjectViewToggle({ initialView }: { initialView: SavedView }) {
+  const [view, changeView] = useSavedView(viewPreferences.projects, initialView);
+  return <div className="inline-flex rounded-lg bg-muted/30 p-0.5" role="group" aria-label="Project view"><Button type="button" size="icon" variant={view === "cards" ? "secondary" : "ghost"} aria-label="Cards" aria-pressed={view === "cards"} onClick={() => changeView("cards")}><LayoutGrid className="size-4" /></Button><Button type="button" size="icon" variant={view === "list" ? "secondary" : "ghost"} aria-label="List" aria-pressed={view === "list"} onClick={() => changeView("list")}><List className="size-4" /></Button></div>;
+}
+
 const budgetLabel = (project: { budgetAmount: number | null; budgetCurrency: string | null }) => project.budgetAmount === null ? "Budget not specified" : `${project.budgetAmount.toLocaleString("en-US")} ${project.budgetCurrency ?? ""}`;
+const shortDateFormat = new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const compactDate = (date: string) => shortDateFormat.format(new Date(date));
 const dateLabel = (date: string) => new Date(date).toLocaleString("en-US", { timeZone: "UTC" });
 
 function ProjectCard({ project, view, onActive }: { project: FreelancehuntProjectView; view: ProjectView; onActive: (open: boolean) => void }) {
   const router = useRouter();
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const [open, setOpen] = useState(false), [live, setLive] = useState<LiveProject | null>(null);
   const [loading, setLoading] = useState(false), [detailsError, setDetailsError] = useState("");
   const [busy, setBusy] = useState(false), [actionError, setActionError] = useState("");
@@ -68,23 +78,28 @@ function ProjectCard({ project, view, onActive }: { project: FreelancehuntProjec
     if (next) { setLive(null); setLoading(true); setDetailsError(""); if (!state.viewed) void mutate({ viewed: true }); }
   }
   const details = live ?? project;
+  const Root = view === "cards" ? Card : "article";
+  const actions = <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" aria-label={`Actions for ${project.name}`} disabled={busy} />}><MoreHorizontal className="size-4" /></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-48">
+    <DropdownMenuItem className="min-h-11 px-3" disabled={busy} onClick={() => void mutate({ saved: !state.saved })}><Bookmark className="size-4" />{state.saved ? "Unsave" : "Save project"}</DropdownMenuItem>
+    <DropdownMenuItem className="min-h-11 px-3" disabled={busy} onClick={() => void mutate({ hidden: !state.hidden })}><EyeOff className="size-4" />{state.hidden ? "Restore" : "Hide project"}</DropdownMenuItem>
+    {!state.viewed && <DropdownMenuItem className="min-h-11 px-3" disabled={busy} onClick={() => void mutate({ viewed: true })}><Check className="size-4" />Mark as viewed</DropdownMenuItem>}
+  </DropdownMenuContent></DropdownMenu>;
   return <Dialog open={open} onOpenChange={changeOpen}>
-    <Card className={`${view === "cards" ? "flex h-full flex-col" : ""} ${!state.viewed ? "border-primary/40" : ""}`}>
-      <DialogTrigger disabled={busy} render={<button type="button" aria-label={`Project details: ${project.name}`} className={`${view === "cards" ? "flex-1" : "block w-full"} text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring`} />}>
+    <Root className={view === "cards" ? `flex h-full flex-col gap-2 py-3 [--card-spacing:--spacing(3)] sm:gap-4 sm:[--card-spacing:--spacing(4)] ${!state.viewed ? "border-primary/40" : ""}` : "relative flex min-w-0 items-start gap-1 p-2 pr-1 hover:bg-muted/20"}>
+      <DialogTrigger disabled={busy} render={<button type="button" aria-label={`Project details: ${project.name}`} className={`${view === "cards" ? "flex-1" : "min-w-0 flex-1 rounded-md px-1 py-1"} text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring`} />}>
         {view === "cards" ? <>
-          <CardHeader className="pb-2"><div className="mb-2 flex flex-wrap gap-2"><Badge variant={project.score >= 80 ? "default" : "secondary"}>{project.score}/100</Badge>{!state.viewed && <Badge variant="outline">New</Badge>}{state.saved && <Badge variant="outline">Saved</Badge>}{state.hidden && <Badge variant="outline">Hidden</Badge>}</div><CardTitle className="line-clamp-2 text-base">{project.name}</CardTitle><CardDescription>{budgetLabel(project)}</CardDescription></CardHeader>
-          <CardContent><p className="line-clamp-3 text-sm text-muted-foreground">{project.description ?? "No description."}</p><p className="mt-3 line-clamp-1 text-xs text-muted-foreground">{project.skills.join(", ") || "Skills not specified"}</p><p className="mt-2 text-xs text-muted-foreground">{project.publishedAt ? "Published: " + dateLabel(project.publishedAt) + " UTC" : "Publication date unknown"}</p></CardContent>
-        </> : <CardContent className="grid gap-3 py-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(120px,0.45fr)_minmax(150px,0.6fr)_minmax(180px,0.8fr)] lg:items-center lg:gap-4">
-          <div className="min-w-0"><CardTitle className="truncate text-base">{project.name}</CardTitle><p className="mt-1 truncate text-xs text-muted-foreground">{project.skills.join(", ") || "Skills not specified"}</p></div>
-          <div className="flex flex-wrap gap-1"><Badge variant={project.score >= 80 ? "default" : "secondary"}>{project.score}/100</Badge>{!state.viewed && <Badge variant="outline">New</Badge>}{state.saved && <Badge variant="outline">Saved</Badge>}</div>
-          <p className="text-sm text-muted-foreground">{budgetLabel(project)}</p><p className="text-xs text-muted-foreground">{project.publishedAt ? dateLabel(project.publishedAt) : "Date unknown"}</p>
-        </CardContent>}
+          <CardHeader className="pb-2"><div className="mb-1 flex flex-wrap gap-1.5 sm:mb-2 sm:gap-2"><Badge variant={project.score >= 80 ? "default" : "secondary"}>{project.score}/100</Badge>{!state.viewed && <Badge variant="outline">New</Badge>}{state.saved && <Badge variant="outline">Saved</Badge>}{state.hidden && <Badge variant="outline">Hidden</Badge>}</div><CardTitle className="line-clamp-2 break-words text-sm sm:text-base">{project.name}</CardTitle><CardDescription className="text-xs font-medium text-foreground sm:text-sm">{budgetLabel(project)}</CardDescription></CardHeader>
+          <CardContent><p className="line-clamp-2 text-xs leading-5 text-muted-foreground sm:line-clamp-3 sm:text-sm">{project.description ?? "No description."}</p><p className="mt-2 line-clamp-1 text-xs text-muted-foreground sm:mt-3">{project.skills.join(", ") || "Skills not specified"}</p><p className="mt-1 text-[11px] text-muted-foreground sm:mt-2 sm:text-xs">{project.publishedAt ? dateLabel(project.publishedAt) + " UTC" : "Publication date unknown"}</p></CardContent>
+        </> : <>
+          <span className="flex min-w-0 items-start gap-1.5"><span aria-hidden="true" className={`mt-1.5 size-1.5 shrink-0 rounded-full ${state.viewed ? "bg-transparent" : "bg-emerald-400"}`} /><span className="line-clamp-2 min-w-0 text-[13px] leading-5 font-medium">{project.name}</span>{state.saved && <Bookmark aria-label="Saved" className="mt-0.5 size-3.5 shrink-0 fill-current text-emerald-300" />}</span>
+          <span className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pl-3 text-[11px] tabular-nums"><span className={project.score >= 80 ? "font-medium text-emerald-300" : "text-muted-foreground"}>{project.score}/100</span><span className="min-w-0 truncate font-medium">{project.budgetAmount == null ? "Budget —" : budgetLabel(project)}</span><time dateTime={project.publishedAt ?? undefined} title={project.publishedAt ? `${dateLabel(project.publishedAt)} UTC` : undefined} className="text-muted-foreground">{project.publishedAt ? compactDate(project.publishedAt) : "Date —"}</time>{!state.viewed && <span className="sr-only">New project</span>}</span>
+        </>}
       </DialogTrigger>
-      <div className={`flex flex-wrap gap-1 border-t px-4 ${view === "cards" ? "pb-4 pt-1" : "py-2"}`}><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => void mutate({ saved: !state.saved })}>{state.saved ? "Unsave" : "Save"}</Button><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => void mutate({ hidden: !state.hidden })}>{state.hidden ? "Restore" : "Hide"}</Button>{!state.viewed && <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => void mutate({ viewed: true })}>Mark as viewed</Button>}</div>
+      {view === "cards" ? <div className="-mb-3 flex items-center justify-between gap-2 border-t pr-1 pl-2"><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => void mutate({ saved: !state.saved })}><Bookmark className={`size-3.5 ${state.saved ? "fill-current" : ""}`} />{state.saved ? "Saved" : "Save"}</Button>{actions}</div> : actions}
       {actionError && !open && <p role="alert" className="px-4 pb-3 text-sm text-destructive">{actionError}</p>}
-    </Card>
-    <DialogContent className="dark dashboard-dialog max-h-[calc(100vh-1rem)] max-w-[calc(100%-1rem)] overflow-y-auto p-4 sm:max-w-2xl sm:p-6">
-      <DialogHeader><DialogTitle className="pr-7 leading-snug">{details.name}</DialogTitle><DialogDescription>{budgetLabel(details)} · Found {dateLabel(project.discoveredAt)} UTC</DialogDescription></DialogHeader>
+    </Root>
+    <DialogContent initialFocus={titleRef} className="dark dashboard-dialog h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] max-w-[calc(100%-1rem)] content-start overflow-y-auto overscroll-contain p-4 [overflow-wrap:anywhere] sm:h-[min(48rem,calc(100dvh-2rem))] sm:max-w-2xl sm:p-6">
+      <DialogHeader><DialogTitle ref={titleRef} tabIndex={-1} className="pr-7 leading-snug outline-none">{details.name}</DialogTitle><DialogDescription>{budgetLabel(details)} · Found {dateLabel(project.discoveredAt)} UTC</DialogDescription></DialogHeader>
       <div aria-live="polite" className="text-sm text-muted-foreground">{loading ? "Refreshing Freelancehunt details…" : detailsError ? <span>{detailsError} <Button type="button" size="sm" variant="ghost" onClick={() => { setLoading(true); setDetailsError(""); setRetry((value) => value + 1); }}>Retry</Button></span> : live ? "Current Freelancehunt data · not stored in the database" : "Database data"}</div>
       {live && <p className="text-sm">{live.status ?? "Status unknown"}{live.bidCount !== null ? ` · Bids: ${live.bidCount}` : ""}{live.expiresAt ? ` · Until: ${dateLabel(live.expiresAt)} UTC` : ""}</p>}
       <div className="whitespace-pre-wrap break-words leading-6">{details.description ?? "No description."}</div>
@@ -92,7 +107,7 @@ function ProjectCard({ project, view, onActive }: { project: FreelancehuntProjec
       <section className="rounded-lg border p-3"><h3 className="font-medium">Relevance: {project.score}/100</h3><p className="mb-2 text-xs text-muted-foreground">Based on synchronized data and your saved profile. The total is capped at 0–100.</p><ul className="space-y-1 text-sm">{project.reasons.map((reason, i) => <li key={i} className="flex justify-between gap-3"><span className="break-words">{reason.rule}</span><span className="shrink-0 tabular-nums">{reason.weight > 0 ? "+" : ""}{reason.weight}</span></li>)}</ul></section>
       <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); void mutate({ notes }); }}><label className="text-sm font-medium" htmlFor={`notes-${project.id}`}>Personal note</label><textarea id={`notes-${project.id}`} className="min-h-24 w-full rounded-md border bg-background p-3 text-sm focus-visible:outline-ring" maxLength={3000} value={notes} onChange={(event) => setNotes(event.target.value)} /><Button type="submit" variant="outline" disabled={busy}>Save note</Button>{noteMessage && <p role="status" className="text-sm text-muted-foreground">{noteMessage}</p>}</form>
       {actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
-      <DialogFooter className="flex-wrap"><Button type="button" variant="outline" disabled={busy} onClick={() => void mutate({ saved: !state.saved })}>{state.saved ? "Unsave" : "Save project"}</Button><Button type="button" variant="outline" disabled={busy} onClick={() => void mutate({ hidden: !state.hidden })}>{state.hidden ? "Restore" : "Hide"}</Button><Button render={<a href={details.url} target="_blank" rel="noreferrer" />}>Open in Freelancehunt</Button></DialogFooter>
+      <DialogFooter className="grid grid-cols-2 sm:flex sm:flex-wrap"><Button type="button" variant="outline" disabled={busy} onClick={() => void mutate({ saved: !state.saved })}>{state.saved ? "Unsave" : "Save project"}</Button><Button type="button" variant="outline" disabled={busy} onClick={() => void mutate({ hidden: !state.hidden })}>{state.hidden ? "Restore" : "Hide"}</Button><Button className="col-span-2" render={<a href={details.url} target="_blank" rel="noreferrer" />}>Open in Freelancehunt</Button></DialogFooter>
     </DialogContent>
   </Dialog>;
 }
