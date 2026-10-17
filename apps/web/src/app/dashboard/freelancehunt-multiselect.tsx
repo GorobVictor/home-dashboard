@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { ChevronDown, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
 
@@ -49,7 +50,7 @@ export function FreelancehuntMultiselect({ name, label, placeholder, options, de
         <div className="max-h-[min(18rem,40dvh)] space-y-3 overflow-y-auto overscroll-contain [scrollbar-color:var(--muted)_transparent]">
           {[...groups].map(([group, items]) => <fieldset key={group} disabled={disabled} className="min-w-0 space-y-1">{group && <legend className="mb-1 px-2 text-xs font-medium text-muted-foreground">{group}</legend>}{items.map((option) => {
             const checked = selected.includes(option.value);
-            return <label key={option.value} className={`flex cursor-pointer items-start gap-3 rounded-lg px-2 py-2.5 text-sm transition-colors hover:bg-muted ${checked ? "bg-primary/10 text-foreground" : "text-muted-foreground"}`}><input type="checkbox" checked={checked} disabled={!checked && selected.length >= limit} onChange={() => toggle(option.value)} className="mt-0.5 size-4 shrink-0 accent-emerald-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-40" /><span className="min-w-0 break-words">{option.label}</span></label>;
+            return <label key={option.value} className={`flex cursor-pointer items-start gap-3 rounded-lg px-2 py-2.5 text-sm transition-colors hover:bg-muted ${checked ? "bg-primary/10 text-foreground" : "text-muted-foreground"}`}><Checkbox checked={checked} disabled={!checked && selected.length >= limit} onChange={() => toggle(option.value)} className="mt-0.5" /><span className="min-w-0 break-words">{option.label}</span></label>;
           })}</fieldset>)}
           {!groups.size && <p role="status" className="py-6 text-center text-sm text-muted-foreground">{loading ? "Loading catalogue…" : onlySelected && !selected.length ? "Nothing selected yet." : "No matches found."}</p>}
         </div>
