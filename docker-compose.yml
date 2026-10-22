@@ -2,7 +2,6 @@ name: home-dashboard
 
 services:
   postgres:
-    container_name: postgres
     image: postgres:17
     environment:
       POSTGRES_DB: home_dashboard
@@ -23,7 +22,6 @@ services:
           - home-dashboard_postgres
 
   web:
-    container_name: web
     image: home-dashboard-web
     build:
       context: .
@@ -69,7 +67,6 @@ services:
       - default
 
   migrate:
-    container_name: migrate
     image: home-dashboard-web
     build:
       context: .
@@ -85,7 +82,6 @@ services:
       - default
 
   worker:
-    container_name: worker
     image: home-dashboard-worker
     build:
       context: .
