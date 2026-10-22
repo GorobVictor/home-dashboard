@@ -23,7 +23,7 @@ async function run(): Promise<void> {
   try {
     await main();
   } catch (error) {
-    console.error("Could not create user", error instanceof Error ? error.name : "unknown_error");
+    console.error("Could not create user", JSON.stringify(error, null, 2));
     process.exitCode = 1;
   } finally {
     await disconnectDatabase();
