@@ -32,14 +32,17 @@ The Compose stack joins an existing external Docker network named `shared`; crea
 ```bash
 cp .env.example .env
 docker compose up -d --build
-docker compose run --rm setup
 ```
 
-Compose runs the migration service after PostgreSQL is healthy and before starting web or worker. The `setup` command creates the initial user after migrations complete. It does not reset an existing user's password. To add another user, set different `INITIAL_USER_*` values and run `docker compose run --rm setup` again. Remove `INITIAL_USER_PASSWORD` from `.env` after use. For later schema deployments without creating a user, run `docker compose run --rm migrate`. The underlying migration command is `npm run db:migrate` inside a container with `DATABASE_URL` set.
+Compose waits for PostgreSQL, applies migrations, then runs `setup` automatically before starting web and worker. Setup creates the first user from `INITIAL_USER_*` only when the users table is empty. Existing installations skip initial setup even after those credentials are removed; account passwords are never reset. Invalid initial credentials stop a fresh installation with an explicit setup error.
+
+For a separate configuration file, use the same file on every Compose command, for example `docker compose --env-file ~/Envs/HomeDashboard.env up --build --detach --remove-orphans`. Compose passes the initial-user settings and database connection to setup; the file does not need a separate `DATABASE_URL`. Direct `npm run db:create-user` commands require `DATABASE_URL` in their own environment.
+
+To add another user, set `INITIAL_USER_*` and run `docker compose --env-file ~/Envs/HomeDashboard.env run --rm setup npm run db:create-user` (omit `--env-file` when using the repository `.env`). The explicit command enables manual creation even in an initialized database. Remove `INITIAL_USER_PASSWORD` from the env file after use. For schema-only deployments, run `docker compose run --rm migrate` with the same env file.
 
 The dashboard is available at [http://localhost:3000](http://localhost:3000) with the default `WEB_PORT`. PostgreSQL has no host port.
 
-The **Мої сайти** tab links to Timeflow API, Timeflow, Portainer, Torrent, Plex and Redis through their public HTTPS domains. Each service opens in a new browser tab.
+The **Мої сайти** tab links to Timeflow API, Timeflow, Portainer, Torrent, Plex, pgAdmin and Redis through their public HTTPS domains. Each service opens in a new browser tab. pgAdmin is hosted in a separate Compose stack.
 
 Dashboard users sign in with their seeded login and password. There is no public registration endpoint. Passwords are stored as scrypt hashes, and the eight-hour JWT session is held in an HttpOnly cookie. The `postgres_data` volume retains database data across restarts.
 

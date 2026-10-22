@@ -76,10 +76,10 @@ graph LR
 | Compose service | Role | Exposure / lifecycle |
 | --- | --- | --- |
 | `postgres` | Persistent database | `postgres_data` volume; also attached to the pre-existing external `shared` network as `home-dashboard_postgres` |
-| `migrate` | Applies Prisma migrations | One-shot; web/worker wait for success |
+| `migrate` | Applies Prisma migrations | One-shot; setup/web/worker wait for success |
 | `web` | Next.js plus custom WebSocket server | `${WEB_PORT}:3000`, published on host interfaces; `WEB_PORT` is required |
 | `worker` | Marstek/Freelancehunt jobs | No public port; single replica assumption |
-| `setup` | Creates initial user from environment | `tools` profile; one-shot |
+| `setup` | Automatically creates the first user from environment when users table is empty | One-shot after migrations; web/worker wait for success |
 
 The web port is published on host interfaces so other applications on the Docker host can reach it; host firewall rules determine whether other machines can connect. The Compose stack requires an existing external Docker network named `shared`; PostgreSQL joins it under the `home-dashboard_postgres` alias as well as the private Compose network. Keep this network limited to trusted local containers. Never publish PostgreSQL or PgAdmin ports to the host or internet.
 
@@ -141,6 +141,7 @@ AGENTS.md
 ### Authentication model
 
 - Users live in `users`; create them only through `npm run db:create-user` or the Compose `setup` service.
+- Automatic setup uses `db:create-user -- --if-empty`; a transaction advisory lock serializes competing first-start runs. It skips populated databases before credential validation, allowing initial credentials to be removed. Manual `db:create-user` supports additional accounts and never changes an existing login's password. Invalid fresh setup must exit nonzero with safe diagnostics.
 - Password handling is in `apps/web/src/server/auth/password.ts`; plaintext is never persisted.
 - Login stores an HS256 JWT in `home_dashboard_session`.
 - Session lifetime is 8 hours (`sessionLifetimeSeconds`).
@@ -163,7 +164,7 @@ AGENTS.md
 | --- | --- |
 | `/login` | Login form |
 | `/dashboard` | Protected dashboard with Energy, Freelancehunt and My sites tabs |
-| `/dashboard?tab=sites` | Six public HTTPS service links, opened in new browser tabs |
+| `/dashboard?tab=sites` | Seven public HTTPS service links, opened in new browser tabs; pgAdmin is hosted in a separate Compose stack |
 | `/dashboard?tab=freelancehunt&page=N` | Server-side paginated projects and project dialog |
 | `/dashboard?device=ID&range=H` | Selected Marstek device and predefined range |
 | `/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD` | Custom UTC range; max 90 days and never future |
@@ -471,7 +472,7 @@ URL: `http://127.0.0.1:${WEB_PORT}` dashboard (default 3000 from `.env.example`)
 
 1. Copy `.env.example` to private `.env`; set passwords/secrets.
 2. `docker compose up -d --build`.
-3. After migrations, create a user with `docker compose --profile tools run --rm setup` or `npm run db:create-user` in a configured environment.
+3. Compose automatically creates the first user from `INITIAL_USER_*` after migrations, before web/worker start. Existing users skip setup without changing credentials. Use the same `--env-file` for every command when configuration is stored outside the checkout. For an additional user, run `docker compose run --rm setup npm run db:create-user`; direct local commands require `DATABASE_URL`.
 4. Log in, then configure Freelancehunt settings only after token is injected into both web and worker.
 5. Confirm Marstek LAN/UDP reachability from Docker host.
 

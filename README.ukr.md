@@ -27,18 +27,23 @@ npm run dev
 
 Скопіюйте `.env.example` у `.env`. Задайте надійні різні значення для `POSTGRES_PASSWORD` і `AUTH_JWT_SECRET`. Згенеруйте секрет JWT командою `openssl rand -base64 48`. Для пароля PostgreSQL використовуйте символи, безпечні для URL (літери, цифри, `_` або `-`), оскільки Compose також вставляє його у `DATABASE_URL`. Для першого користувача задайте `INITIAL_USER_FIRST_NAME`, `INITIAL_USER_LAST_NAME`, `INITIAL_USER_LOGIN` і `INITIAL_USER_PASSWORD`. Пароль має містити 12–128 символів, а логін — 3–50 малих латинських літер, цифр, `.`, `_` або `-`.
 
+Стек Compose підключається до наявної зовнішньої Docker-мережі `shared`; за потреби створіть її один раз командою `docker network create shared`. Вебсервіс публікує порт `WEB_PORT` на інтерфейсах хоста (типово 3000), щоб до нього могли підключатися інші локальні програми. PostgreSQL не публікується на порти хоста; він доступний у мережі Compose та в довіреній мережі `shared` за псевдонімом `home-dashboard_postgres`.
+
 ```bash
 cp .env.example .env
 docker compose build web worker
-docker compose run --rm setup
 docker compose up -d
 ```
 
-Команда `setup` окремим кроком застосовує збережені міграції та створює першого користувача. Вона не скидає пароль наявного користувача. Щоб додати ще одного користувача, задайте інші значення `INITIAL_USER_*` і знову виконайте `docker compose run --rm setup`. Після використання приберіть `INITIAL_USER_PASSWORD` із `.env`. Для наступних змін схеми без створення користувача запускайте `docker compose run --rm migrate`. Усередині контейнера з налаштованим `DATABASE_URL` міграцію виконує команда `npm run db:migrate`.
+Compose чекає готовності PostgreSQL, застосовує міграції та автоматично запускає `setup` перед web і worker. Перший користувач створюється з `INITIAL_USER_*`, лише якщо таблиця користувачів порожня. За наявності користувачів початкове налаштування пропускається навіть після видалення початкових облікових даних. Паролі наявних користувачів не змінюються. Невалідні початкові дані блокують перший запуск із явною помилкою setup.
 
-Панель керування доступна за адресою [http://localhost:3000](http://localhost:3000). PostgreSQL не має порту на хості, а вебінтерфейс доступний лише через localhost.
+Для окремого env-файлу передавайте його в кожну команду Compose: `docker compose --env-file ~/Envs/HomeDashboard.env up --build --detach --remove-orphans`. Compose сам передає дані користувача та `DATABASE_URL` до setup. Для прямого локального запуску `npm run db:create-user` потрібно окремо задати `DATABASE_URL`.
 
-Користувачі панелі входять за попередньо створеними логіном і паролем. Публічного маршруту реєстрації немає. Паролі зберігаються як хеші scrypt, а восьмигодинна сесія JWT — у cookie HttpOnly. Том `postgres_data` зберігає дані бази між перезапусками.
+Щоб додати ще одного користувача, задайте `INITIAL_USER_*` і виконайте `docker compose --env-file ~/Envs/HomeDashboard.env run --rm setup npm run db:create-user` (для локального `.env` параметр `--env-file` не потрібен). Явна команда вмикає ручне створення в уже налаштованій базі. Після використання приберіть `INITIAL_USER_PASSWORD` з env-файлу. Для застосування лише міграцій запускайте `docker compose run --rm migrate` з тим самим env-файлом.
+
+Панель керування доступна за адресою [http://localhost:3000](http://localhost:3000) зі стандартним `WEB_PORT`. PostgreSQL не має порту на хості.
+
+Користувачі панелі входять за створеними логіном і паролем. Вкладка **Мої сайти** містить посилання на Timeflow API, Timeflow, Portainer, Torrent, Plex, pgAdmin і Redis. Публічного маршруту реєстрації немає. Паролі зберігаються як хеші scrypt, а восьмигодинна сесія JWT — у cookie HttpOnly. Том `postgres_data` зберігає дані бази між перезапусками.
 
 ## Marstek Venus E 3.0
 
