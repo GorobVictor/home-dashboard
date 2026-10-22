@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoadingState, OptionListSkeleton } from "@/components/loading-state";
 import { PageHeader } from "@/components/page-header";
+import { headerIconButtonClassName, headerLogoutButtonClassName } from "@/lib/ui-layout";
+import type { SavedView } from "@/lib/view-preferences";
 
 function Panel({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <div className={`min-w-0 space-y-4 rounded-2xl border bg-card p-3 sm:space-y-5 sm:p-6 ${className}`}>{children}</div>;
@@ -12,23 +14,26 @@ function Heading() {
 }
 
 function Fields({ count = 4 }: { count?: number }) {
-  return <div className="grid min-w-0 grid-cols-2 gap-3">{Array.from({ length: count }, (_, index) => <div key={index} className="min-w-0 space-y-2"><Skeleton className="h-3 w-20" /><Skeleton className="h-10 w-full rounded-lg" /></div>)}</div>;
+  return <div className="grid min-w-0 grid-cols-2 gap-3">{Array.from({ length: count }, (_, index) => <div key={index} className="min-w-0 space-y-2"><Skeleton className="h-3 w-20" /><Skeleton className="h-11 w-full rounded-lg sm:h-10" /></div>)}</div>;
 }
 
-function PageSkeleton({ title, mobileTitle, label, children, narrow = false }: { title: string; mobileTitle?: string; label: string; children: ReactNode; narrow?: boolean }) {
+function PageSkeleton({ title, mobileTitle, label, children, narrow = false, actions = "icons" }: { title: string; mobileTitle?: string; label: string; children: ReactNode; narrow?: boolean; actions?: "icons" | "settings" | "dashboard" }) {
   return <div className="dashboard-shell min-h-screen"><main className={`mx-auto w-full min-w-0 space-y-3 px-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:space-y-6 sm:px-8 sm:py-8 ${narrow ? "max-w-6xl" : "max-w-7xl lg:py-9"}`}>
     <PageHeader title={title} mobileTitle={mobileTitle}>
-      <div aria-hidden="true" className="flex gap-1 sm:gap-2"><Skeleton className="size-9 rounded-lg" /><Skeleton className="size-11 rounded-lg sm:size-9" /><Skeleton className="size-11 rounded-lg sm:h-9 sm:w-20" /></div>
+      <div aria-hidden="true" className="flex gap-1 sm:gap-2">
+        <Skeleton className={headerIconButtonClassName} /><Skeleton className={headerIconButtonClassName} />
+        {actions === "dashboard" ? <Skeleton className={`${headerLogoutButtonClassName} inline-flex items-center justify-center rounded-lg border border-transparent px-2.5 text-sm font-medium`}><span className="invisible hidden sm:inline">Sign out</span></Skeleton> : actions === "icons" ? <Skeleton className={headerIconButtonClassName} /> : null}
+      </div>
     </PageHeader>
     <LoadingState label={label} className="min-w-0 space-y-3 sm:space-y-6">{children}</LoadingState>
   </main></div>;
 }
 
-export function DashboardSkeleton({ tab = "energy" }: { tab?: string }) {
+export function DashboardSkeleton({ tab = "energy", projectView = "cards" }: { tab?: string; projectView?: SavedView }) {
   const projects = tab === "freelancehunt", sites = tab === "sites";
-  return <PageSkeleton title={sites ? "Мої сайти" : projects ? "Your workspace" : "Your energy, at a glance."} mobileTitle={sites ? "Мої сайти" : projects ? "Workspace" : "Energy"} label="Loading dashboard">
-    <div className="grid grid-cols-[0.8fr_1.4fr_1fr] gap-1 rounded-xl border bg-muted/30 p-1 sm:w-96">{[0, 1, 2].map((index) => <Skeleton key={index} className="h-11 rounded-lg sm:h-9" />)}</div>
-    {sites ? <SitesSkeleton /> : projects ? <ProjectsSkeleton /> : <EnergySkeleton />}
+  return <PageSkeleton title={sites ? "Мої сайти" : projects ? "Your workspace" : "Your energy, at a glance."} mobileTitle={sites ? "Мої сайти" : projects ? "Workspace" : "Energy"} label="Loading dashboard" actions="dashboard">
+    <div className="grid grid-cols-[0.8fr_1.4fr_1fr] gap-1 rounded-xl border bg-muted/30 p-1 sm:w-fit sm:grid-cols-[4.25rem_8.5rem_6rem]">{[0, 1, 2].map((index) => <Skeleton key={index} className="h-11 rounded-lg sm:h-9" />)}</div>
+    {sites ? <SitesSkeleton /> : projects ? <ProjectsSkeleton view={projectView} /> : <EnergySkeleton />}
   </PageSkeleton>;
 }
 
@@ -43,21 +48,24 @@ function EnergySkeleton() {
         </div>
         <div className="flex justify-between border-t pt-3"><Skeleton className="h-3 w-24" /><Skeleton className="h-3 w-20" /></div>
       </Panel>
-      <Panel className="hidden lg:block"><Heading /><div className="grid grid-cols-2 gap-4 py-4">{[0, 1, 2, 3].map((index) => <div key={index} className="space-y-3 rounded-xl border p-5"><Skeleton className="size-9 rounded-xl" /><Skeleton className="h-3 w-20" /><Skeleton className="h-7 w-24" /></div>)}</div></Panel>
+      <Panel className="hidden lg:flex lg:flex-col"><Heading /><div className="mx-auto grid w-full max-w-lg flex-1 grid-cols-3 grid-rows-[100px_104px_100px] items-center justify-items-center">
+        {["col-start-2 row-start-1", "col-start-1 row-start-2", "col-start-3 row-start-2", "col-start-2 row-start-3"].map((position) => <div key={position} className={`flex flex-col items-center gap-2 ${position}`}><Skeleton className="size-9 rounded-full" /><Skeleton className="h-5 w-16" /><Skeleton className="h-3 w-12" /></div>)}
+        <Skeleton className="col-start-2 row-start-2 size-14 rounded-2xl" />
+      </div><div className="flex justify-between border-t pt-4"><Skeleton className="h-3 w-28" /><Skeleton className="h-3 w-32" /></div></Panel>
       <div className="grid grid-cols-2 gap-1 rounded-xl border bg-muted/30 p-1 lg:hidden"><Skeleton className="h-11 rounded-lg" /><Skeleton className="h-11 rounded-lg" /></div>
     </div>
     <div className="space-y-3 sm:space-y-5"><Heading />
-      <div className="flex flex-wrap gap-2">{[0, 1, 2, 3, 4].map((index) => <Skeleton key={index} className="h-11 w-12 rounded-lg sm:h-9 sm:w-16" />)}<Skeleton className="h-11 w-32 rounded-lg sm:h-9" /></div>
+      <div className="space-y-2 sm:space-y-3"><div className="grid grid-cols-5 gap-1 rounded-xl border bg-muted/30 p-1 sm:w-fit">{[0, 1, 2, 3, 4].map((index) => <Skeleton key={index} className="h-11 rounded-lg sm:w-14" />)}</div><Skeleton className="h-11 w-full sm:hidden" /><div className="hidden items-end gap-3 rounded-xl border bg-card p-4 sm:flex">{[0, 1].map((index) => <div key={index} className="space-y-2"><Skeleton className="h-3 w-10" /><Skeleton className="h-11 w-40 rounded-lg" /></div>)}<Skeleton className="h-11 w-28 rounded-lg" /></div></div>
       <div className="grid gap-3 sm:gap-4 xl:grid-cols-2">{[0, 1, 2].map((index) => <Panel key={index} className={index === 2 ? "xl:col-span-2" : ""}><Heading /><div className="relative h-48 border-b border-l border-border/60 sm:h-60"><div className="absolute inset-0 flex flex-col justify-between">{[0, 1, 2, 3].map((line) => <div key={line} className="border-t border-dashed border-border/40" />)}</div><Skeleton className="absolute inset-x-3 bottom-4 h-1/2 rounded-xl" /></div><div className="flex justify-between"><Skeleton className="h-3 w-12" /><Skeleton className="h-3 w-12" /><Skeleton className="h-3 w-12" /></div></Panel>)}</div>
     </div>
-    <Panel><Heading /><Fields count={6} /></Panel>
+    <Panel><Heading /></Panel>
   </div>;
 }
 
-function ProjectsSkeleton() {
+function ProjectsSkeleton({ view }: { view: SavedView }) {
   return <div className="space-y-4"><Heading />
-    <Panel><Heading /><div className="hidden space-y-4 sm:block"><Fields count={8} /><Skeleton className="h-10 w-32 rounded-lg" /></div></Panel>
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }, (_, index) => <Panel key={index}><div className="flex gap-2"><Skeleton className="h-5 w-12 rounded-full" /><Skeleton className="h-5 w-20 rounded-full" /></div><Skeleton className="h-5 w-full" /><Skeleton className="h-5 w-2/3" /><div className="space-y-2"><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-4/5" /></div><Skeleton className="h-3 w-24" /><div className="flex gap-2 border-t pt-3"><Skeleton className="h-7 w-16" /><Skeleton className="ml-auto size-7" /></div></Panel>)}</div>
+    <div className="flex min-h-13 items-center justify-between gap-3 rounded-xl border bg-card p-1 pl-3 sm:pl-4"><Skeleton className="h-4 w-20" /><div className="flex gap-1">{[0, 1].map((index) => <Skeleton key={index} className="size-11 rounded-lg sm:size-8" />)}</div></div>
+    {view === "list" ? <div className="divide-y overflow-hidden rounded-xl border bg-card/50">{Array.from({ length: 6 }, (_, index) => <div key={index} className="space-y-3 p-3"><Skeleton className="h-4 w-4/5" /><Skeleton className="h-3 w-2/3" /><div className="flex gap-2"><Skeleton className="h-5 w-16 rounded-full" /><Skeleton className="h-5 w-24 rounded-full" /></div></div>)}</div> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }, (_, index) => <Panel key={index}><div className="flex gap-2"><Skeleton className="h-5 w-12 rounded-full" /><Skeleton className="h-5 w-20 rounded-full" /></div><Skeleton className="h-5 w-full" /><Skeleton className="h-5 w-2/3" /><div className="space-y-2"><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-4/5" /></div><Skeleton className="h-3 w-24" /><div className="flex gap-2 border-t pt-3"><Skeleton className="h-11 w-16 sm:h-7" /><Skeleton className="ml-auto size-11 sm:size-8" /></div></Panel>)}</div>}
   </div>;
 }
 
@@ -66,12 +74,12 @@ function SitesSkeleton() {
 }
 
 export function SettingsSkeleton() {
-  return <PageSkeleton title="Settings" label="Loading settings">
+  return <PageSkeleton title="Settings" label="Loading settings" actions="settings">
     <div className="hidden sm:block"><Heading /></div><Skeleton className="h-11 w-64 rounded-lg" />
     <div className="grid items-start gap-4 lg:grid-cols-2">
       <div className="space-y-4"><Panel><Heading />{[0, 1, 2].map((index) => <SettingSkeleton key={index} />)}<div className="space-y-3 border-t pt-4"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-28 rounded-xl" /><Skeleton className="h-3 w-3/4" /></div></Panel><Panel><Heading /><SettingSkeleton /></Panel></div>
-      <Panel><Heading /><Skeleton className="h-10 w-full rounded-xl" /><div className="h-[min(24rem,55dvh)] overflow-hidden rounded-xl border bg-background/30 p-3 sm:h-[36rem]"><OptionListSkeleton rows={10} /></div><Skeleton className="h-3 w-3/4" /></Panel>
-      <div className="flex justify-end rounded-xl border bg-card p-2 sm:p-4 lg:col-span-2"><Skeleton className="h-10 w-full rounded-xl sm:w-40" /></div>
+      <Panel><Heading /><Skeleton className="h-11 w-full rounded-xl sm:h-10" /><div className="h-[min(24rem,55dvh)] overflow-hidden rounded-xl border bg-background/30 p-3 sm:h-[36rem]"><OptionListSkeleton rows={10} compact /></div><Skeleton className="h-3 w-3/4" /></Panel>
+      <div className="flex justify-end rounded-xl border bg-card p-2 sm:p-4 lg:col-span-2"><Skeleton className="h-11 w-full rounded-xl sm:h-10 sm:w-40" /></div>
     </div>
   </PageSkeleton>;
 }

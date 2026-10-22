@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bookmark, Check, EyeOff, LayoutGrid, List, MoreHorizontal } from "lucide-react";
 import type { ProjectStatePatch } from "@home-dashboard/integrations/freelancehunt-rules";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoadingState } from "@/components/loading-state";
@@ -101,14 +101,14 @@ function ProjectCard({ project, view, onActive }: { project: FreelancehuntProjec
       {actionError && !open && <p role="alert" className="px-4 pb-3 text-sm text-destructive">{actionError}</p>}
     </Root>
     <DialogContent initialFocus={titleRef} className="dark dashboard-dialog h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] max-w-[calc(100%-1rem)] content-start overflow-y-auto overscroll-contain p-4 [overflow-wrap:anywhere] sm:h-[min(48rem,calc(100dvh-2rem))] sm:max-w-2xl sm:p-6">
-      <DialogHeader><DialogTitle ref={titleRef} tabIndex={-1} className="pr-7 leading-snug outline-none">{details.name}</DialogTitle><DialogDescription>{budgetLabel(details)} · Found {dateLabel(project.discoveredAt)} UTC</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle ref={titleRef} tabIndex={-1} className="pr-12 leading-snug outline-none">{details.name}</DialogTitle><DialogDescription>{budgetLabel(details)} · Found {dateLabel(project.discoveredAt)} UTC</DialogDescription></DialogHeader>
       <div aria-live="polite" className="text-sm text-muted-foreground">{loading ? <LoadingState label="Refreshing Freelancehunt details" className="space-y-3"><Skeleton className="h-4 w-3/4 max-w-80" /><div className="flex gap-2"><Skeleton className="h-5 w-20 rounded-full" /><Skeleton className="h-5 w-24 rounded-full" /></div></LoadingState> : detailsError ? <span>{detailsError} <Button type="button" size="sm" variant="ghost" onClick={() => { setLoading(true); setDetailsError(""); setRetry((value) => value + 1); }}>Retry</Button></span> : live ? "Current Freelancehunt data · not stored in the database" : "Database data"}</div>
       {live && <p className="text-sm">{live.status ?? "Status unknown"}{live.bidCount !== null ? ` · Bids: ${live.bidCount}` : ""}{live.expiresAt ? ` · Until: ${dateLabel(live.expiresAt)} UTC` : ""}</p>}
       <div className="whitespace-pre-wrap break-words leading-6">{details.description ?? "No description."}</div>
-      <div><h3 className="mb-2 font-medium">Skills</h3><div className="flex flex-wrap gap-2">{details.skills.map((skill) => <Badge key={skill} variant="secondary">{skill}</Badge>)}</div>{!!project.categories?.length && <p className="mt-2 text-xs text-muted-foreground">Categories: {project.categories.join(", ")}</p>}</div>
+      <div><h3 className="mb-2 font-medium">Skills</h3><div className="flex flex-wrap gap-2">{details.skills.map((skill) => <Badge key={skill} variant="secondary" className="h-auto min-h-5 max-w-full rounded-lg whitespace-normal break-words text-left">{skill}</Badge>)}</div>{!!project.categories?.length && <p className="mt-2 text-xs text-muted-foreground">Categories: {project.categories.join(", ")}</p>}</div>
       <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); void mutate({ notes }); }}><label className="text-sm font-medium" htmlFor={`notes-${project.id}`}>Personal note</label><textarea id={`notes-${project.id}`} className="min-h-24 w-full rounded-md border bg-background p-3 text-sm focus-visible:outline-ring" maxLength={3000} value={notes} onChange={(event) => setNotes(event.target.value)} /><Button type="submit" variant="outline" disabled={busy}>Save note</Button>{noteMessage && <p role="status" className="text-sm text-muted-foreground">{noteMessage}</p>}</form>
       {actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
-      <DialogFooter className="grid grid-cols-2 sm:flex sm:flex-wrap"><Button type="button" variant="outline" disabled={busy} onClick={() => void mutate({ saved: !state.saved })}>{state.saved ? "Unsave" : "Save project"}</Button><Button type="button" variant="outline" disabled={busy} onClick={() => void mutate({ hidden: !state.hidden })}>{state.hidden ? "Restore" : "Hide"}</Button><Button className="col-span-2" render={<a href={details.url} target="_blank" rel="noreferrer" />}>Open in Freelancehunt</Button></DialogFooter>
+      <DialogFooter className="grid grid-cols-2 sm:-mx-6 sm:-mb-6 sm:flex sm:flex-wrap sm:p-6"><Button type="button" variant="outline" disabled={busy} onClick={() => void mutate({ saved: !state.saved })}>{state.saved ? "Unsave" : "Save project"}</Button><Button type="button" variant="outline" disabled={busy} onClick={() => void mutate({ hidden: !state.hidden })}>{state.hidden ? "Restore" : "Hide"}</Button><a className={buttonVariants({ className: "col-span-2 min-h-11 sm:min-h-8" })} href={details.url} target="_blank" rel="noreferrer">Open in Freelancehunt</a></DialogFooter>
     </DialogContent>
   </Dialog>;
 }

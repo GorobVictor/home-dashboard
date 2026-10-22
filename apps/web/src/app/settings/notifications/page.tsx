@@ -6,8 +6,8 @@ import { DashboardLiveUpdates } from "../../dashboard/live-updates";
 import { RefreshButton } from "../../dashboard/refresh-button";
 import { ChannelForm } from "./channel-form";
 import { ArrowLeft, List, Settings } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/page-header";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { HeaderLink, PageHeader } from "@/components/page-header";
 
 export default async function NotificationSettings({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const user = await currentUser(); if (!user) redirect("/login");
@@ -16,7 +16,7 @@ export default async function NotificationSettings({ searchParams }: { searchPar
   const page = Number.isInteger(requested) && requested >= 1 && requested <= 10000 ? requested : 1;
   const [channels, history] = await Promise.all([listNotificationChannels(), listNotificationDeliveries(undefined, page)]);
   return <div className="dashboard-shell min-h-screen"><main className="mx-auto w-full min-w-0 max-w-7xl space-y-3 px-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:space-y-6 sm:px-8 sm:py-8 lg:py-9"><DashboardLiveUpdates userId={user.id} />
-    <PageHeader title="Notifications and Telegram" mobileTitle="Notifications"><Button variant="outline" size="icon" aria-label="Settings" title="Settings" render={<Link href="/settings" />}><Settings className="size-4" /></Button><Button variant="outline" size="icon" aria-label="Event log" title="Event log" render={<Link href="/events" />}><List className="size-4" /></Button><Button variant="outline" size="icon" aria-label="Dashboard" title="Dashboard" render={<Link href="/dashboard" />}><ArrowLeft className="size-4" /></Button></PageHeader>
+    <PageHeader title="Notifications and Telegram" mobileTitle="Notifications"><HeaderLink href="/settings" label="Settings"><Settings aria-hidden="true" className="size-4" /></HeaderLink><HeaderLink href="/events" label="Event log"><List aria-hidden="true" className="size-4" /></HeaderLink><HeaderLink href="/dashboard" label="Dashboard"><ArrowLeft aria-hidden="true" className="size-4" /></HeaderLink></PageHeader>
     <details className="rounded-xl border bg-card p-3 text-sm text-muted-foreground"><summary className="cursor-pointer font-medium text-foreground">Telegram setup and delivery</summary><p className="mt-2 leading-6">Channels are shared by this home dashboard. Configure the bot token on the server through TELEGRAM_BOT_TOKEN in the worker. Add the bot to a chat or channel with permission to send messages. A test is sent after saving a channel and bypasses severity and source filters.</p></details>
     {channels.length === 0 && <p className="rounded-xl border p-4 text-muted-foreground">No channels are configured yet. Dashboard notifications work independently of Telegram.</p>}
     {channels.map((channel) => <ChannelForm key={`${channel.id}:${channel.updatedAt.toISOString()}`} channel={{ id: channel.id, name: channel.name, chatId: channel.chatId, enabled: channel.enabled, minSeverity: channel.minSeverity, sources: Array.isArray(channel.sources) ? channel.sources.filter((source): source is string => typeof source === "string") : [] }} />)}
@@ -34,8 +34,8 @@ function DeliveryPagination({ page, pageSize, total, position }: { page: number;
   return <nav aria-label={`Delivery pages (${position})`} className="flex flex-wrap items-center justify-between gap-2 text-sm">
     <div className="text-xs text-muted-foreground sm:text-sm"><p>Attempts: {total}</p><p>Page {page} / {pages}</p></div>
     <div className="flex gap-2">
-      <Button variant="outline" className="min-h-11" disabled={page <= 1} render={page > 1 ? <Link href={`/settings/notifications?page=${page - 1}#delivery-history`} /> : undefined}>Previous</Button>
-      <Button variant="outline" className="min-h-11" disabled={page >= pages} render={page < pages ? <Link href={`/settings/notifications?page=${page + 1}#delivery-history`} /> : undefined}>Next</Button>
+      {page > 1 ? <Link className={buttonVariants({ variant: "outline", className: "min-h-11" })} href={`/settings/notifications?page=${page - 1}#delivery-history`}>Previous</Link> : <Button variant="outline" className="min-h-11" disabled>Previous</Button>}
+      {page < pages ? <Link className={buttonVariants({ variant: "outline", className: "min-h-11" })} href={`/settings/notifications?page=${page + 1}#delivery-history`}>Next</Link> : <Button variant="outline" className="min-h-11" disabled>Next</Button>}
     </div>
   </nav>;
 }

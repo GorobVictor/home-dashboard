@@ -154,6 +154,7 @@
 
 @media (max-width: 639px) {
   .dashboard-theme [data-slot="button"],
+  .dashboard-theme [data-slot="select-trigger"],
   .dashboard-theme [data-slot="input"] {
     min-height: 2.75rem;
   }

@@ -6,6 +6,7 @@ import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { NotificationListSkeleton } from "@/components/loading-state";
+import { headerIconButtonClassName } from "@/lib/ui-layout";
 import { Popover, PopoverTrigger, PopoverContent, PopoverTitle } from "@/components/ui/popover";
 
 type Inbox = { unreadCount: number; items: { id: string; readAt: string | null; event: { title: string; severity: string; occurredAt: string } }[] };
@@ -38,8 +39,8 @@ export function NotificationBell() {
     } catch { setError(true); }
     finally { setBusy(false); }
   }
-  return <Popover><PopoverTrigger render={<Button variant="outline" size="icon" aria-label={`Notifications: ${inbox?.unreadCount ?? 0} unread`} className="relative size-9" />} onClick={() => void load()}>
-    <Bell className="size-4" />{(inbox?.unreadCount ?? 0) > 0 && <Badge className="absolute -right-2 -top-2 px-1 text-[10px]" aria-hidden="true">{inbox!.unreadCount > 99 ? "99+" : inbox!.unreadCount}</Badge>}
+  return <Popover><PopoverTrigger render={<Button variant="outline" size="icon" title="Notifications" aria-label={inbox ? `Notifications: ${inbox.unreadCount} unread` : "Notifications"} className={`relative ${headerIconButtonClassName}`} />} onClick={() => void load()}>
+    <Bell aria-hidden="true" className="size-4" />{(inbox?.unreadCount ?? 0) > 0 && <Badge className="absolute -right-1 -top-1 min-w-4 justify-center px-1 text-[10px]" aria-hidden="true">{inbox!.unreadCount > 99 ? "99+" : inbox!.unreadCount}</Badge>}
   </PopoverTrigger><PopoverContent className="p-3 sm:p-4"><div className="mb-3 flex items-center justify-between gap-2"><PopoverTitle className="font-semibold">Notifications</PopoverTitle><Button variant="ghost" size="sm" disabled={busy || !inbox?.unreadCount} onClick={() => void markRead()}>Mark all as read</Button></div>
     <div aria-live="polite" className="h-[min(24rem,50dvh)] space-y-2 overflow-y-auto overscroll-contain">
       {error ? <div role="alert" className="text-sm text-destructive">Could not refresh notifications. <button className="underline" onClick={() => void load()}>Retry</button></div> : !inbox ? <NotificationListSkeleton /> : inbox.items.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">No notifications yet.</p> : inbox.items.map((item) => <article key={item.id} className={`rounded-lg border p-2.5 sm:p-3 ${item.readAt ? "opacity-70" : "bg-muted/50"}`}>

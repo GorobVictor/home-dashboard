@@ -33,15 +33,18 @@ export function FadeValue({ value, className }: { value: string; className?: str
 
   return (
     <span aria-live="polite" className={`${className ?? ""} inline-grid overflow-hidden align-baseline`}>
+      <span className="sr-only">{value}</span>
       <span
-        className={`col-start-1 row-start-1 transition-all duration-200 ease-out ${
+        aria-hidden="true"
+        className={`col-start-1 row-start-1 motion-safe:transition-all duration-200 ease-out ${
           transitioning ? "-translate-y-full opacity-0" : "translate-y-0 opacity-100"
         }`}
       >
         {displayedValue}
       </span>
       <span
-        className={`col-start-1 row-start-1 transition-all duration-200 ease-out ${
+        aria-hidden="true"
+        className={`col-start-1 row-start-1 motion-safe:transition-all duration-200 ease-out ${
           transitioning ? "translate-y-0 opacity-100" : "translate-y-full opacity-0"
         }`}
       >

@@ -14,7 +14,7 @@ export function RefreshButton() {
   }, [router]);
   return (
     <Button variant="outline" size="sm" onClick={() => startTransition(() => router.refresh())} disabled={pending}>
-      <RefreshCw className={pending ? "animate-spin" : ""} aria-hidden="true" />
+      <RefreshCw className={pending ? "motion-safe:animate-spin" : ""} aria-hidden="true" />
       Refresh
     </Button>
   );
