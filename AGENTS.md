@@ -75,13 +75,13 @@ graph LR
 
 | Compose service | Role | Exposure / lifecycle |
 | --- | --- | --- |
-| `postgres` | Persistent database | Internal; `postgres_data` volume |
+| `postgres` | Persistent database | `postgres_data` volume; also attached to the pre-existing external `shared` network as `home-dashboard_postgres` |
 | `migrate` | Applies Prisma migrations | One-shot; web/worker wait for success |
-| `web` | Next.js plus custom WebSocket server | `127.0.0.1:${WEB_PORT:-3000}` |
+| `web` | Next.js plus custom WebSocket server | `${WEB_PORT}:3000`, published on host interfaces; `WEB_PORT` is required |
 | `worker` | Marstek/Freelancehunt jobs | No public port; single replica assumption |
 | `setup` | Creates initial user from environment | `tools` profile; one-shot |
 
-Never expose PostgreSQL publicly. Do not bind the dashboard beyond localhost without TLS and a proxy/auth review.
+The web port is published on host interfaces so other applications on the Docker host can reach it; host firewall rules determine whether other machines can connect. The Compose stack requires an existing external Docker network named `shared`; PostgreSQL joins it under the `home-dashboard_postgres` alias as well as the private Compose network. Keep this network limited to trusted local containers. Never publish PostgreSQL or PgAdmin ports to the host or internet.
 
 ## 4. Repository map
 
@@ -434,7 +434,7 @@ Never commit `.env`, tokens, passwords, credentials, or private local values. Ke
 | `POSTGRES_PASSWORD` | Compose | Required; Compose builds internal database URL |
 | `AUTH_JWT_SECRET` | web | Required, at least 32 UTF-8 bytes |
 | `INITIAL_USER_FIRST_NAME`, `INITIAL_USER_LAST_NAME`, `INITIAL_USER_LOGIN`, `INITIAL_USER_PASSWORD` | setup | Initial user; password must be 12+ chars |
-| `WEB_PORT` | Compose | Local web port; default 3000 |
+| `WEB_PORT` | Compose | Required host port for the web service; `.env.example` sets it to 3000 |
 | `MARSTEK_DEVICES` | worker | JSON device list |
 | `FREELANCEHUNT_API_TOKEN` | web + worker | Enables skills endpoint and monitoring |
 | `TELEGRAM_BOT_TOKEN` | worker | Secret; required for Telegram delivery, never persisted |
@@ -465,7 +465,7 @@ Web receives Freelancehunt token because settings load skills. Worker receives F
 | `docker compose ps` | Inspect service health |
 | `docker compose logs -f worker` | Inspect poll/notification logs |
 
-URL: `http://127.0.0.1:3000` dashboard.
+URL: `http://127.0.0.1:${WEB_PORT}` dashboard (default 3000 from `.env.example`). The port is published on host interfaces. Create the required external network once with `docker network create shared` if it does not already exist.
 
 ### Safe local setup
 

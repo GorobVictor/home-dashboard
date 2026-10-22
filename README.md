@@ -27,6 +27,8 @@ For local telemetry development, set `DATABASE_URL` and `MARSTEK_DEVICES` in `.e
 
 Copy `.env.example` to `.env`. Set `POSTGRES_PASSWORD` and `AUTH_JWT_SECRET` to strong, distinct values. Generate the JWT secret with `openssl rand -base64 48`. Use a URL-safe PostgreSQL password (letters, digits, `_`, or `-`) because Compose also uses it in `DATABASE_URL`. Set `INITIAL_USER_FIRST_NAME`, `INITIAL_USER_LAST_NAME`, `INITIAL_USER_LOGIN`, and `INITIAL_USER_PASSWORD` for the first user. The password must contain 12–128 characters; the login must contain 3–50 lowercase letters, digits, `.`, `_`, or `-`.
 
+The Compose stack joins an existing external Docker network named `shared`; create it once with `docker network create shared` if needed. The web service publishes `WEB_PORT` on the host interfaces (3000 by default), allowing other local applications to connect. PostgreSQL remains unpublished to host ports and is reachable through the Compose network and the trusted `shared` network alias `home-dashboard_postgres`.
+
 ```bash
 cp .env.example .env
 docker compose up -d --build
@@ -35,7 +37,7 @@ docker compose run --rm setup
 
 Compose runs the migration service after PostgreSQL is healthy and before starting web or worker. The `setup` command creates the initial user after migrations complete. It does not reset an existing user's password. To add another user, set different `INITIAL_USER_*` values and run `docker compose run --rm setup` again. Remove `INITIAL_USER_PASSWORD` from `.env` after use. For later schema deployments without creating a user, run `docker compose run --rm migrate`. The underlying migration command is `npm run db:migrate` inside a container with `DATABASE_URL` set.
 
-The dashboard is available at [http://localhost:3000](http://localhost:3000). PostgreSQL has no host port and the web interface binds to localhost.
+The dashboard is available at [http://localhost:3000](http://localhost:3000) with the default `WEB_PORT`. PostgreSQL has no host port.
 
 The **Мої сайти** tab links to Timeflow API, Timeflow, Portainer, Torrent, Plex and Redis through their public HTTPS domains. Each service opens in a new browser tab.
 
