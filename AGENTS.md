@@ -96,21 +96,16 @@ apps/
       api/auth/                       # login, logout, current-user endpoints
       api/freelancehunt/              # settings and skill catalogue routes
       api/marstek/                    # dashboard overview route
-      api/docker/                     # Docker status, history and guarded actions
       dashboard/                      # dashboard, charts, project dialog, live updates
       login/                          # login page/form
       settings/                       # Freelancehunt settings page/form
-      system/                         # Docker container monitoring UI
     src/server/                       # server-only auth, input parsing, dashboard service
-      docker.ts                       # Docker status and worker action client
     src/server.ts                     # custom Next + WebSocket server
     scripts/create-user.ts            # initial-user CLI
   worker/
     src/index.ts                      # process lifecycle and scheduling
     src/jobs/marstek-poll.ts          # testable device polling job
     src/jobs/freelancehunt-poll.ts    # testable Freelancehunt job
-    src/jobs/docker-poll.ts           # Docker Engine polling and metrics
-    src/docker-control.ts             # token-protected start/stop endpoint
 packages/
   database/
     prisma/schema.prisma              # Prisma schema
@@ -122,9 +117,6 @@ packages/
   integrations/
     src/marstek.ts                    # UDP client, response validation/mapping
     src/freelancehunt.ts              # API client, validation, Telegram client
-  docker-monitoring/
-    src/index.ts                      # Docker Engine socket client
-    src/metrics.ts                    # CPU, memory and network calculations
 docker/
   web.Dockerfile
   worker.Dockerfile
@@ -175,7 +167,8 @@ AGENTS.md
 | URL | Behavior |
 | --- | --- |
 | `/login` | Login form |
-| `/dashboard` | Protected dashboard with Energy and Freelancehunt tabs |
+| `/dashboard` | Protected dashboard with Energy, Freelancehunt and My sites tabs |
+| `/dashboard?tab=sites` | Seven public HTTPS service links, opened in new browser tabs |
 | `/dashboard?tab=freelancehunt&page=N` | Server-side paginated projects and project dialog |
 | `/dashboard?device=ID&range=H` | Selected Marstek device and predefined range |
 | `/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD` | Custom UTC range; max 90 days and never future |
@@ -600,19 +593,12 @@ Done means applicable code is in right boundary, types/tests pass or gap is stat
 
 ## 18. Freelancehunt personal workspace
 
-- `packages/integrations/src/freelancehunt-rules.ts` is a pure browser-safe domain module exported as `@home-dashboard/integrations/freelancehunt-rules`. It owns scoring, input contracts and state patches. Starter .NET/backend/integration profiles are editable seed data; never embed user preferences in scoring logic. Scores are base plus each matched rule once, clamped to 0–100; negative technology/keyword weights are supported. Budget rules are currency-specific with no conversion.
-- `packages/database/src/freelancehunt-workspace.ts` owns per-user preferences, up to 30 named presets, scores/reasons and project states. Scores are indexed and recalculated in cursor batches when the personal profile changes; only scores/reasons change during recalculation. Filters, sorts and pagination run in PostgreSQL. Saved/viewed/hidden timestamps and notes are personal. Default lists exclude hidden projects; New means not viewed by that user. Presets contain filters and scoring together.
+- `packages/integrations/src/freelancehunt-rules.ts` is a pure browser-safe domain module exported as `@home-dashboard/integrations/freelancehunt-rules`. It owns filter validation, input contracts and personal state patches. Projects are selected by filters only; no scoring or ranking rules are used.
+- `packages/database/src/freelancehunt-workspace.ts` owns per-user filters, up to 30 named filter presets and sparse project states. Filters, date/budget sorts and pagination run in PostgreSQL. Saved/viewed/hidden timestamps and notes are personal. Projects without a personal state row remain visible and New. Default lists exclude hidden projects; New means not viewed by that user.
 - The existing single worker still polls with the configured skill IDs/cadence. It loads the skill catalogue at most daily (retry after five minutes on failure), maps numeric skills to category group names, and backfills old project metadata without rediscovery notifications. No per-project detail requests are added to polling.
-- Project synchronization uses a transaction advisory lock to serialize baseline/unique-ID checks, including duplicate IDs within a batch. Initial results are silent. Later projects always generate immutable `freelancehunt.project_created` events; eligible personal inboxes/toasts and Telegram channels are selected by their own scoring profile and minimum score. Profile/threshold changes do not replay old notifications. Channel source/severity filters and Telegram master switch still apply. `EventInput.userIds`/`channelIds` only scope fanout and are never persisted in event payloads.
-- Authenticated `GET/PUT /api/freelancehunt/workspace`, `POST /api/freelancehunt/presets`, `DELETE /api/freelancehunt/presets/[id]` and `PATCH /api/freelancehunt/projects/[id]` manage personal data; mutations require same-origin. Profiles/filters/channels use a bounded 16 KiB JSON body because they contain up to 40 rules. Notes allow up to 3,000 characters.
-- Authenticated `GET /api/freelancehunt/projects/[id]` requires an already synchronized external project ID, calls `FreelancehuntClient.getProject`, and returns no-store live details. It never writes live details into the database. The dialog renders stored data immediately and fetches current data separately with cancellation/retry/fallback. Scores explain the synchronized snapshot. Descriptions stay plain text; outgoing project URLs are validated as HTTPS Freelancehunt links.
-- `freelancehunt.integration.test.ts` requires a fresh disposable `FREELANCEHUNT_TEST_DATABASE_URL` ending in `_freelancehunt_test`, with committed migrations applied. It checks actual SQL filters, personal state persistence/isolation, presets, score recalculation, baseline/concurrent deduplication and notification thresholds. Default tests remain offline.
+- Project synchronization uses a transaction advisory lock to serialize baseline/unique-ID checks, including duplicate IDs within a batch. Initial results are silent. Later projects always generate immutable `freelancehunt.project_created` events. Personal inbox/toast recipients match saved content filters; saved/viewed/hidden list state does not suppress future discoveries. Telegram channels follow collection settings, source/severity filters and the Telegram master switch. Filter changes do not replay old notifications. `EventInput.userIds`/`channelIds` only scope fanout and are never persisted in event payloads.
+- Authenticated `GET/PUT /api/freelancehunt/workspace`, `POST /api/freelancehunt/presets`, `DELETE /api/freelancehunt/presets/[id]` and `PATCH /api/freelancehunt/projects/[id]` manage personal data; mutations require same-origin. Filters use a bounded 16 KiB JSON body for keyword/category selections. Notes allow up to 3,000 characters.
+- Authenticated `GET /api/freelancehunt/projects/[id]` requires an already synchronized external project ID, calls `FreelancehuntClient.getProject`, and returns no-store live details. It never writes live details into the database. The dialog renders stored data immediately and fetches current data separately with cancellation/retry/fallback. Descriptions stay plain text; outgoing project URLs are validated as HTTPS Freelancehunt links.
+- `freelancehunt.integration.test.ts` requires a fresh disposable `FREELANCEHUNT_TEST_DATABASE_URL` ending in `_freelancehunt_test`, with committed migrations applied. It checks actual SQL filters, personal state persistence/isolation, presets, projects without personal state rows, baseline/concurrent deduplication and filter-based notification recipients. Default tests remain offline.
 
-## 19. Docker monitoring
-
-- `/system` monitors Docker containers only. Docker Desktop Linux-container metrics must never be labelled as Windows host metrics.
-- `packages/docker-monitoring` is the typed Docker Engine Unix-socket client. It exposes only list, inspect, one-shot stats, start and stop; never add a generic Docker proxy, CLI dependency, exec, delete, create or shell action.
-- Docker socket access is opt-in through `.env`: it maps `/dev/null` by default and uses `/var/run/docker.sock` only when Docker monitoring is enabled. Only `worker` receives that mount; `web` uses the worker's token-authenticated internal endpoint. `DOCKER_CONTROL_TOKEN` is secret and must never reach browser code, database data or logs. Keep `DOCKER_WORKER_USER=node` unless the mounted Docker Desktop socket denies it write access; `root` is a narrowly documented fallback for owner-only sockets and increases the impact of a worker compromise.
-- The worker retains raw Docker metrics for seven days and 5-minute rollups/actions/container tombstones for 90 days. It polls without overlap, tolerates Docker being unavailable, and must not prevent Marstek, Freelancehunt or notification jobs from running.
-- Current container lists and summary counts exclude tombstones (`missingSince != null`). Keep the first disappearance timestamp until a container is observed again; rebuilds create new IDs while old metrics/actions remain available for their retention period. `docker.integration.test.ts` uses a fresh disposable `DOCKER_TEST_DATABASE_URL` ending in `_docker_test` with committed migrations applied.
-- `docker` is a valid source for central notification channels. Docker state events are observations; avoid alerting on the first successful baseline or on an intentional dashboard-issued stop.
+Container monitoring and control are managed separately in Portainer. Do not add Docker socket access or container-management features to the dashboard without an explicit task.
