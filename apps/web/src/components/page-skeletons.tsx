@@ -96,8 +96,14 @@ export function NotificationSettingsSkeleton() {
   return <PageSkeleton title="Notifications and Telegram" mobileTitle="Notifications" label="Loading notification channels">
     <div className="rounded-xl border bg-card p-3"><Skeleton className="h-5 w-56 max-w-full" /></div>
     <Panel><Heading /><Fields /><div className="flex flex-wrap gap-3">{[0, 1, 2].map((index) => <Skeleton key={index} className="h-8 w-24 rounded-lg" />)}</div><SettingSkeleton /><div className="border-t pt-3"><Skeleton className="h-9 w-24 rounded-lg" /></div></Panel>
-    <Heading /><div className="space-y-2">{[0, 1, 2].map((index) => <RecordSkeleton key={index} />)}</div>
+    <Heading /><DeliveryPaginationSkeleton />
+    <div className="space-y-2">{[0, 1, 2].map((index) => <RecordSkeleton key={index} />)}</div>
+    <DeliveryPaginationSkeleton />
   </PageSkeleton>;
+}
+
+function DeliveryPaginationSkeleton() {
+  return <div className="flex flex-wrap items-center justify-between gap-2"><div className="space-y-2"><Skeleton className="h-3 w-24" /><Skeleton className="h-3 w-16" /></div><div className="flex gap-2"><Skeleton className="h-11 w-20 rounded-lg" /><Skeleton className="h-11 w-16 rounded-lg" /></div></div>;
 }
 
 export function LoginSkeleton() {

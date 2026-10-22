@@ -54,12 +54,13 @@ export async function markNotificationsRead(userId: string, id?: string) {
 
 export async function listNotificationDeliveries(channelId?: string, page = 1) {
   const db = getDatabase();
+  const pageSize = 5;
   const where = channelId ? { notification: { channelId } } : {};
   const [items, total] = await Promise.all([
-    db.notificationDelivery.findMany({ where, include: { notification: { select: { status: true, nextAttemptAt: true, event: { select: { title: true, type: true } } } } }, orderBy: [{ startedAt: "desc" }, { id: "desc" }], take: 30, skip: (page - 1) * 30 }),
+    db.notificationDelivery.findMany({ where, include: { notification: { select: { status: true, nextAttemptAt: true, event: { select: { title: true, type: true } } } } }, orderBy: [{ startedAt: "desc" }, { id: "desc" }], take: pageSize, skip: (page - 1) * pageSize }),
     db.notificationDelivery.count({ where }),
   ]);
-  return { items, total, page, pageSize: 30 };
+  return { items, total, page, pageSize };
 }
 
 export async function testNotificationChannel(channelId: string, userId: string) {
