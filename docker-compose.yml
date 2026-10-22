@@ -2,7 +2,7 @@ name: home-dashboard
 
 services:
   postgres:
-    container_name: home-dashboard-postgres
+    container_name: postgres
     image: postgres:17
     environment:
       POSTGRES_DB: home_dashboard
@@ -16,10 +16,15 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    networks:
+      default: {}
+      shared:
+        aliases:
+          - home-dashboard_postgres
 
   web:
-    container_name: home-dashboard-web
-    image: home-dashboard-web:local
+    container_name: web
+    image: home-dashboard-web
     build:
       context: .
       dockerfile: docker/web.Dockerfile
@@ -29,7 +34,7 @@ services:
       HOSTNAME: 0.0.0.0
       FREELANCEHUNT_API_TOKEN: ${FREELANCEHUNT_API_TOKEN:-}
     ports:
-      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+      - "${WEB_PORT:?WEB_PORT is required}:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,9 +48,11 @@ services:
       start_period: 30s
     init: true
     restart: unless-stopped
+    networks:
+      - default
 
   setup:
-    image: home-dashboard-web:local
+    image: home-dashboard-web
     profiles: ["tools"]
     environment:
       DATABASE_URL: postgresql://home_dashboard:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/home_dashboard
@@ -58,10 +65,12 @@ services:
         condition: service_completed_successfully
     command: ["npm", "run", "db:create-user"]
     restart: "no"
+    networks:
+      - default
 
   migrate:
-    container_name: home-dashboard-migrate
-    image: home-dashboard-web:local
+    container_name: migrate
+    image: home-dashboard-web
     build:
       context: .
       dockerfile: docker/web.Dockerfile
@@ -72,10 +81,12 @@ services:
         condition: service_healthy
     command: ["npm", "run", "db:migrate"]
     restart: "no"
+    networks:
+      - default
 
   worker:
-    container_name: home-dashboard-worker
-    image: home-dashboard-worker:local
+    container_name: worker
+    image: home-dashboard-worker
     build:
       context: .
       dockerfile: docker/worker.Dockerfile
@@ -93,6 +104,13 @@ services:
         condition: service_completed_successfully
     init: true
     restart: unless-stopped
+    networks:
+      - default
 
 volumes:
   postgres_data:
+
+networks:
+  shared:
+    external: true
+    name: "shared"
