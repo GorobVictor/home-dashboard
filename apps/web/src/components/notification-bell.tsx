@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { NotificationListSkeleton } from "@/components/loading-state";
 import { Popover, PopoverTrigger, PopoverContent, PopoverTitle } from "@/components/ui/popover";
 
 type Inbox = { unreadCount: number; items: { id: string; readAt: string | null; event: { title: string; severity: string; occurredAt: string } }[] };
@@ -41,7 +42,7 @@ export function NotificationBell() {
     <Bell className="size-4" />{(inbox?.unreadCount ?? 0) > 0 && <Badge className="absolute -right-2 -top-2 px-1 text-[10px]" aria-hidden="true">{inbox!.unreadCount > 99 ? "99+" : inbox!.unreadCount}</Badge>}
   </PopoverTrigger><PopoverContent className="p-3 sm:p-4"><div className="mb-3 flex items-center justify-between gap-2"><PopoverTitle className="font-semibold">Notifications</PopoverTitle><Button variant="ghost" size="sm" disabled={busy || !inbox?.unreadCount} onClick={() => void markRead()}>Mark all as read</Button></div>
     <div aria-live="polite" className="h-[min(24rem,50dvh)] space-y-2 overflow-y-auto overscroll-contain">
-      {error ? <div role="alert" className="text-sm text-destructive">Could not refresh notifications. <button className="underline" onClick={() => void load()}>Retry</button></div> : !inbox ? <p className="text-sm text-muted-foreground">Loading…</p> : inbox.items.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">No notifications yet.</p> : inbox.items.map((item) => <article key={item.id} className={`rounded-lg border p-2.5 sm:p-3 ${item.readAt ? "opacity-70" : "bg-muted/50"}`}>
+      {error ? <div role="alert" className="text-sm text-destructive">Could not refresh notifications. <button className="underline" onClick={() => void load()}>Retry</button></div> : !inbox ? <NotificationListSkeleton /> : inbox.items.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">No notifications yet.</p> : inbox.items.map((item) => <article key={item.id} className={`rounded-lg border p-2.5 sm:p-3 ${item.readAt ? "opacity-70" : "bg-muted/50"}`}>
         <div className="flex gap-2"><Badge variant="outline">{item.event.severity}</Badge>{!item.readAt && <span className="text-xs text-primary">New</span>}</div><p className="mt-2 break-words text-sm">{item.event.title}</p><time className="mt-1 block text-xs text-muted-foreground">{new Date(item.event.occurredAt).toLocaleString("en-US")}</time>
         {!item.readAt && <Button className="mt-2" variant="ghost" size="sm" disabled={busy} onClick={() => void markRead(item.id)}>Mark as read</Button>}
       </article>)}

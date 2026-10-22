@@ -26,11 +26,12 @@ export function FreelancehuntFilters({ workspace, initialView }: { workspace: Wo
   const [presetId, setPresetId] = useState("");
   const [filterReset, setFilterReset] = useState(0);
   const [skills, setSkills] = useState<FreelancehuntSkill[]>([]);
+  const [catalogueLoading, setCatalogueLoading] = useState(true);
   const [catalogueError, setCatalogueError] = useState("");
   const [busy, setBusy] = useState(false), [message, setMessage] = useState("");
   useEffect(() => {
     let active = true;
-    loadFreelancehuntCatalogue().then((skills) => { if (active) setSkills(skills); }).catch(() => { if (active) setCatalogueError("The skill catalogue is unavailable. Your saved selection remains active."); });
+    loadFreelancehuntCatalogue().then((skills) => { if (active) setSkills(skills); }).catch(() => { if (active) setCatalogueError("The skill catalogue is unavailable. Your saved selection remains active."); }).finally(() => { if (active) setCatalogueLoading(false); });
     return () => { active = false; };
   }, []);
   async function request(path: string, method: string, body?: object) {
@@ -66,8 +67,8 @@ export function FreelancehuntFilters({ workspace, initialView }: { workspace: Wo
       <FreelancehuntSelect name="state" label="State" defaultValue={filters.state} disabled={busy} options={[{ value: "all", label: "All visible" }, { value: "new", label: "New (not viewed)" }, { value: "viewed", label: "Viewed" }, { value: "saved", label: "Saved" }, { value: "hidden", label: "Hidden" }]} />
       <label className="flex min-w-0 flex-col gap-2 text-sm col-span-2"><span className="font-medium">Contains all words / phrases (comma separated)</span><Input className="block h-10" name="include" maxLength={3000} defaultValue={filters.include.join(", ")} /></label><label className="flex min-w-0 flex-col gap-2 text-sm col-span-2"><span className="font-medium">Excludes any word / phrase (comma separated)</span><Input className="block h-10" name="exclude" maxLength={3000} defaultValue={filters.exclude.join(", ")} /></label>
       <label className="flex min-w-0 flex-col gap-2 text-sm"><span className="font-medium">Published from (UTC)</span><Input className="block h-10" type="date" name="from" defaultValue={filters.from} /></label><label className="flex min-w-0 flex-col gap-2 text-sm"><span className="font-medium">Published to (UTC)</span><Input className="block h-10" type="date" name="to" defaultValue={filters.to} /></label>
-      <FreelancehuntMultiselect name="skillIds" label="Skills" placeholder="Any skills" options={skills.map((skill) => ({ value: String(skill.id), label: skill.name, group: skill.groupName }))} defaultValue={filters.skillIds.map(String)} limit={50} disabled={busy} loading={!skills.length && !catalogueError} />
-      <FreelancehuntMultiselect name="categories" label="Categories" placeholder="Any categories" options={categories.map((name) => ({ value: name, label: name }))} defaultValue={filters.categories} limit={30} disabled={busy} loading={!skills.length && !catalogueError} />
+      <FreelancehuntMultiselect name="skillIds" label="Skills" placeholder="Any skills" options={skills.map((skill) => ({ value: String(skill.id), label: skill.name, group: skill.groupName }))} defaultValue={filters.skillIds.map(String)} limit={50} disabled={busy} loading={catalogueLoading} />
+      <FreelancehuntMultiselect name="categories" label="Categories" placeholder="Any categories" options={categories.map((name) => ({ value: name, label: name }))} defaultValue={filters.categories} limit={30} disabled={busy} loading={catalogueLoading} />
       <FreelancehuntSelect name="sort" label="Sort" className="col-span-2" defaultValue={filters.sort} disabled={busy} options={[{ value: "date", label: "Publication date ↓" }, { value: "budget", label: "Currency ↑, budget ↓" }]} />
     </fieldset>
     <p className="text-xs text-muted-foreground">Filters apply to synchronized projects. Configure the skill list for collection in Settings. Budgets in different currencies are not converted. “New” means you have not viewed the project yet. Content filters also select future dashboard notifications. Telegram follows the collection settings and channel source/severity filters.</p>

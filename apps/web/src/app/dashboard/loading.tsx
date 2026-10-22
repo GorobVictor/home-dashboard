@@ -1,7 +1,14 @@
+"use client";
+
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { DashboardSkeleton } from "@/components/page-skeletons";
+
+function DashboardLoadingContent() {
+  const params = useSearchParams();
+  return <DashboardSkeleton tab={params.get("tab") ?? "energy"} />;
+}
+
 export default function DashboardLoading() {
-  return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-8" role="status" aria-live="polite">
-      Loading dashboard…
-    </main>
-  );
+  return <Suspense fallback={<DashboardSkeleton />}><DashboardLoadingContent /></Suspense>;
 }

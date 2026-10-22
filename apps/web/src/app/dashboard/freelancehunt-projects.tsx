@@ -6,6 +6,8 @@ import { Bookmark, Check, EyeOff, LayoutGrid, List, MoreHorizontal } from "lucid
 import type { ProjectStatePatch } from "@home-dashboard/integrations/freelancehunt-rules";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingState } from "@/components/loading-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useSavedView } from "@/components/use-saved-view";
@@ -100,7 +102,7 @@ function ProjectCard({ project, view, onActive }: { project: FreelancehuntProjec
     </Root>
     <DialogContent initialFocus={titleRef} className="dark dashboard-dialog h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] max-w-[calc(100%-1rem)] content-start overflow-y-auto overscroll-contain p-4 [overflow-wrap:anywhere] sm:h-[min(48rem,calc(100dvh-2rem))] sm:max-w-2xl sm:p-6">
       <DialogHeader><DialogTitle ref={titleRef} tabIndex={-1} className="pr-7 leading-snug outline-none">{details.name}</DialogTitle><DialogDescription>{budgetLabel(details)} · Found {dateLabel(project.discoveredAt)} UTC</DialogDescription></DialogHeader>
-      <div aria-live="polite" className="text-sm text-muted-foreground">{loading ? "Refreshing Freelancehunt details…" : detailsError ? <span>{detailsError} <Button type="button" size="sm" variant="ghost" onClick={() => { setLoading(true); setDetailsError(""); setRetry((value) => value + 1); }}>Retry</Button></span> : live ? "Current Freelancehunt data · not stored in the database" : "Database data"}</div>
+      <div aria-live="polite" className="text-sm text-muted-foreground">{loading ? <LoadingState label="Refreshing Freelancehunt details" className="space-y-3"><Skeleton className="h-4 w-3/4 max-w-80" /><div className="flex gap-2"><Skeleton className="h-5 w-20 rounded-full" /><Skeleton className="h-5 w-24 rounded-full" /></div></LoadingState> : detailsError ? <span>{detailsError} <Button type="button" size="sm" variant="ghost" onClick={() => { setLoading(true); setDetailsError(""); setRetry((value) => value + 1); }}>Retry</Button></span> : live ? "Current Freelancehunt data · not stored in the database" : "Database data"}</div>
       {live && <p className="text-sm">{live.status ?? "Status unknown"}{live.bidCount !== null ? ` · Bids: ${live.bidCount}` : ""}{live.expiresAt ? ` · Until: ${dateLabel(live.expiresAt)} UTC` : ""}</p>}
       <div className="whitespace-pre-wrap break-words leading-6">{details.description ?? "No description."}</div>
       <div><h3 className="mb-2 font-medium">Skills</h3><div className="flex flex-wrap gap-2">{details.skills.map((skill) => <Badge key={skill} variant="secondary">{skill}</Badge>)}</div>{!!project.categories?.length && <p className="mt-2 text-xs text-muted-foreground">Categories: {project.categories.join(", ")}</p>}</div>

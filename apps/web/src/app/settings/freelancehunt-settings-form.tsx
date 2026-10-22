@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { LoadingState, OptionListSkeleton } from "@/components/loading-state";
 
 interface Settings {
   enabled: boolean;
@@ -24,6 +25,7 @@ export function FreelancehuntSettingsForm({ settings }: { settings: Settings }) 
   const [value, setValue] = useState(settings);
   const [saving, setSaving] = useState(false);
   const [skills, setSkills] = useState<Skill[]>([]);
+  const [skillsLoading, setSkillsLoading] = useState(true);
   const [skillsError, setSkillsError] = useState<string | null>(null);
   const [skillQuery, setSkillQuery] = useState("");
   const selectedSkills = useMemo(() => new Set(value.skillIds), [value.skillIds]);
@@ -46,7 +48,8 @@ export function FreelancehuntSettingsForm({ settings }: { settings: Settings }) 
     fetch("/api/freelancehunt/skills", { cache: "no-store" })
       .then(async (response) => response.ok ? await response.json() as Skill[] : Promise.reject(new Error(String(response.status))))
       .then((items) => { if (active && Array.isArray(items)) setSkills(items); })
-      .catch(() => { if (active) setSkillsError("Could not load the Freelancehunt skill list. Check FREELANCEHUNT_API_TOKEN and try again."); });
+      .catch(() => { if (active) setSkillsError("Could not load the Freelancehunt skill list. Check FREELANCEHUNT_API_TOKEN and try again."); })
+      .finally(() => { if (active) setSkillsLoading(false); });
     return () => { active = false; };
   }, []);
 
@@ -96,7 +99,7 @@ export function FreelancehuntSettingsForm({ settings }: { settings: Settings }) 
       <CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><SlidersHorizontal aria-hidden="true" className="size-4 text-muted-foreground" /><h3 className="text-lg font-semibold">Project skills</h3></div><span className="rounded-full border border-emerald-400/15 bg-emerald-400/10 px-2.5 py-1 text-xs tabular-nums text-emerald-300">{selectedSkills.size} selected</span></div><CardDescription className="mt-1">Choose the skills used to find relevant projects.</CardDescription></CardHeader>
       <CardContent className="space-y-4">
         <div className="relative"><label htmlFor="skill-search" className="sr-only">Search skills</label><Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="skill-search" className="h-10 rounded-xl pl-10 pr-3" value={skillQuery} onChange={(event) => setSkillQuery(event.target.value)} placeholder="Search skills…" /></div>
-        <div className="h-[min(24rem,55dvh)] sm:h-[36rem]">{skillsError ? <p role="alert" className="rounded-xl border border-destructive/25 bg-destructive/10 p-4 text-sm leading-6 text-destructive">{skillsError}</p> : skills.length === 0 ? <p role="status" className="flex h-full items-center justify-center gap-2 rounded-xl border border-dashed px-4 text-sm text-muted-foreground"><LoaderCircle aria-hidden="true" className="size-4 motion-safe:animate-spin" />Loading skills…</p> : <div className="h-full space-y-3 overflow-y-auto overscroll-contain rounded-xl border bg-background/30 p-3 [scrollbar-color:var(--muted)_transparent]">
+        <div className="h-[min(24rem,55dvh)] sm:h-[36rem]">{skillsError ? <p role="alert" className="rounded-xl border border-destructive/25 bg-destructive/10 p-4 text-sm leading-6 text-destructive">{skillsError}</p> : skillsLoading ? <LoadingState label="Loading skills" className="h-full overflow-hidden rounded-xl border bg-background/30 p-3"><OptionListSkeleton rows={10} /></LoadingState> : <div className="h-full space-y-3 overflow-y-auto overscroll-contain rounded-xl border bg-background/30 p-3 [scrollbar-color:var(--muted)_transparent]">
           {[...groupedSkills].map(([groupName, groupSkills]) => <section key={groupName}><h4 className="mb-2 px-2 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">{groupName}</h4><div className="grid grid-cols-2 gap-1 sm:block sm:space-y-1">{groupSkills.map((skill) => <label key={skill.id} className={`flex cursor-pointer items-start min-h-11 gap-2 rounded-lg px-2 py-2 text-xs sm:gap-3 sm:px-2.5 sm:py-2.5 sm:text-sm transition-colors ${selectedSkills.has(skill.id) ? "bg-emerald-400/[0.07] text-emerald-100" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}><Checkbox className="mt-0.5" checked={selectedSkills.has(skill.id)} onChange={(event) => toggleSkill(skill.id, event.target.checked)} /><span className="min-w-0 break-words">{skill.name}</span></label>)}</div></section>)}
           {visibleSkills.length === 0 && <p role="status" className="px-2 py-8 text-center text-sm text-muted-foreground">No matching skills.</p>}
         </div>}</div>

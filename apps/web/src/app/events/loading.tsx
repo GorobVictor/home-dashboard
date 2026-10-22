@@ -1,1 +1,1 @@
-export default function Loading() { return <p role="status" className="p-8 text-muted-foreground">Loading events…</p>; }
+export { EventsSkeleton as default } from "@/components/page-skeletons";
