@@ -14,10 +14,3 @@ test("event filters reject invalid dates, inverted ranges and unbounded paginati
   assert.throws(() => pageNumber(new URLSearchParams({ page: "10001" })));
   assert.equal(parseEventFilters(new URLSearchParams({ severity: "critical", from: "2026-10-16" })).from?.toISOString(), "2026-10-16T00:00:00.000Z");
 });
-
-test("channel relevance profiles and thresholds are bounded and validated", () => {
-  const input = { name: "Home", chatId: "-100123", enabled: true, minSeverity: "info", sources: ["freelancehunt"], projectMinScore: 80, projectScoring: { base: 10, rules: [{ field: "technology", term: "C#", weight: 90 }] } };
-  assert.deepEqual(parseChannel(input), input);
-  assert.throws(() => parseChannel({ ...input, projectMinScore: 101 }));
-  assert.throws(() => parseChannel({ ...input, projectScoring: { base: 10, rules: [{ field: "unknown", term: "C#", weight: 90 }] } }));
-});

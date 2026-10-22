@@ -1,12 +1,10 @@
 import "dotenv/config";
 import cron from "node-cron";
-import { disconnectDatabase, getFreelancehuntSettings, pruneMarstekMeasurements, syncMarstekDevices, initializeLegacyTelegramChannel, getDockerMonitoringSettings, rollupDockerMetrics, pruneDockerMonitoring } from "@home-dashboard/database";
+import { disconnectDatabase, getFreelancehuntSettings, pruneMarstekMeasurements, syncMarstekDevices, initializeLegacyTelegramChannel } from "@home-dashboard/database";
 import { parseMarstekDevices, type MarstekDeviceConfig } from "@home-dashboard/integrations";
 import { pollMarstekDevices } from "./jobs/marstek-poll";
 import { pollFreelancehunt } from "./jobs/freelancehunt-poll";
 import { processNotifications } from "./jobs/notification-delivery";
-import { pollDockerContainers } from "./jobs/docker-poll";
-import { startDockerControlServer } from "./docker-control";
 
 const devices = parseMarstekDevices(process.env.MARSTEK_DEVICES);
 let pruning = false;
@@ -18,20 +16,6 @@ let freelancehuntTimer: ReturnType<typeof setTimeout> | undefined;
 let freelancehuntPromise: Promise<void> | undefined;
 let notificationTimer: ReturnType<typeof setTimeout> | undefined;
 let notificationPromise: Promise<void> | undefined;
-let dockerTimer: ReturnType<typeof setTimeout> | undefined;
-let dockerPromise: Promise<void> | undefined;
-let dockerControlServer: import("node:http").Server | undefined;
-
-function scheduleDockerPolling(delayMs = 1_000): void {
-  if (stopping || process.env.DOCKER_MONITORING_ENABLED !== "true") return;
-  dockerTimer = setTimeout(async () => {
-    const startedAt = Date.now();
-    dockerPromise = pollDockerContainers().then(() => undefined).finally(async () => {
-      if (!stopping) { const settings = await getDockerMonitoringSettings().catch(() => ({ pollIntervalSeconds: 60 })); scheduleDockerPolling(Math.max(5_000, settings.pollIntervalSeconds * 1_000 - (Date.now() - startedAt))); }
-    });
-    await dockerPromise;
-  }, delayMs);
-}
 
 function scheduleNotifications(): void {
   if (stopping) return;
@@ -108,10 +92,6 @@ async function main(): Promise<void> {
   for (const device of devices) schedulePolling(device);
   scheduleFreelancehuntPolling();
   scheduleNotifications();
-  scheduleDockerPolling();
-  dockerControlServer = startDockerControlServer();
-  const dockerRollupTask = cron.schedule("0 * * * *", () => { void rollupDockerMetrics().catch(() => console.error("docker_rollup_failed")); }, { timezone: "UTC" });
-  const dockerRetentionTask = cron.schedule("27 3 * * *", () => { void rollupDockerMetrics().then(pruneDockerMonitoring).catch(() => console.error("docker_retention_failed")); }, { timezone: "UTC" });
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.once(signal, async () => {
@@ -120,13 +100,9 @@ async function main(): Promise<void> {
       for (const timer of pollTimers.values()) clearTimeout(timer);
       if (freelancehuntTimer) clearTimeout(freelancehuntTimer);
       if (notificationTimer) clearTimeout(notificationTimer);
-      if (dockerTimer) clearTimeout(dockerTimer);
       retentionTask.stop();
-      dockerRollupTask.stop();
-      dockerRetentionTask.stop();
-      await new Promise<void>((resolve) => dockerControlServer?.close(() => resolve()) ?? resolve());
       console.info("worker_stopping", { signal });
-      await Promise.allSettled([...pollingPromises.values(), pruningPromise, freelancehuntPromise, notificationPromise, dockerPromise]);
+      await Promise.allSettled([...pollingPromises.values(), pruningPromise, freelancehuntPromise, notificationPromise]);
       await disconnectDatabase();
       process.exit(0);
     });

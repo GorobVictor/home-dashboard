@@ -7,16 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { FreelancehuntScoringEditor } from "@/components/freelancehunt-scoring-editor";
-import { initialScoringProfiles } from "@home-dashboard/integrations/freelancehunt-rules";
 import { FreelancehuntSelect } from "../../dashboard/freelancehunt-select";
 
 const emptyChannel: ChannelInput = { name: "", chatId: "", enabled: true, minSeverity: "info", sources: [] };
-const newChannel = (): ChannelInput => ({ ...emptyChannel, projectMinScore: 0, projectScoring: initialScoringProfiles[0].profile });
+const newChannel = (): ChannelInput => ({ ...emptyChannel, sources: [] });
 
 export function ChannelForm({ channel }: { channel?: ChannelInput & { id: string } }) {
   const router = useRouter();
-  const [values, setValues] = useState<ChannelInput>(channel ? { name: channel.name, chatId: channel.chatId, enabled: channel.enabled, minSeverity: channel.minSeverity, sources: channel.sources, projectMinScore: channel.projectMinScore ?? 0, projectScoring: channel.projectScoring ?? initialScoringProfiles[0].profile } : newChannel());
+  const [values, setValues] = useState<ChannelInput>(channel ? { name: channel.name, chatId: channel.chatId, enabled: channel.enabled, minSeverity: channel.minSeverity, sources: channel.sources } : newChannel());
   const [busy, setBusy] = useState(false), [message, setMessage] = useState(""), [error, setError] = useState(false);
   const prefix = channel?.id ?? "new";
 
@@ -40,8 +38,7 @@ export function ChannelForm({ channel }: { channel?: ChannelInput & { id: string
       <FreelancehuntSelect label="Minimum severity" value={values.minSeverity} onValueChange={(minSeverity) => setValues({ ...values, minSeverity: minSeverity as ChannelInput["minSeverity"] })} options={["info", "warning", "error", "critical"].map((value) => ({ value, label: value }))} />
       <div className="flex h-10 items-center gap-3 rounded-lg border bg-input/30 px-3 sm:mt-7"><Switch id={`${prefix}-enabled`} className="data-checked:bg-emerald-400" checked={values.enabled} onCheckedChange={(enabled) => setValues({ ...values, enabled })} /><label htmlFor={`${prefix}-enabled`} className="text-sm font-medium">Notifications enabled</label></div>
     </section>
-    <fieldset className="rounded-xl border bg-muted/20 p-3 sm:p-4"><legend className="px-1 text-sm font-medium">Sources</legend><p className="mb-3 text-xs text-muted-foreground">Leave all sources unchecked to receive every source.</p><div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">{["marstek", "freelancehunt", "system", "docker"].map((source) => <label key={source} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs sm:text-sm transition-colors ${values.sources.includes(source) ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-100" : "border-input bg-input/30 text-muted-foreground hover:bg-muted"}`}><Checkbox checked={values.sources.includes(source)} onChange={(event) => setValues({ ...values, sources: event.target.checked ? [...values.sources, source] : values.sources.filter((item) => item !== source) })} />{source}</label>)}</div></fieldset>
-    <details className="rounded-xl border bg-muted/20 p-3 sm:p-4"><summary className="cursor-pointer text-sm font-medium">Freelancehunt project relevance</summary><div className="mt-4 space-y-4"><label className="grid max-w-xs gap-2 text-sm font-medium">Send projects scored at least<Input className="h-10" type="number" min={0} max={100} required value={values.projectMinScore ?? 0} onChange={(event) => setValues({ ...values, projectMinScore: Number(event.target.value) })} /></label><p className="text-xs text-muted-foreground">This applies to new projects only. Other events and test notifications ignore this score. The channel profile is independent from personal profiles.</p><FreelancehuntScoringEditor value={values.projectScoring ?? initialScoringProfiles[0].profile} onChange={(projectScoring) => setValues({ ...values, projectScoring })} disabled={busy} /></div></details>
+    <fieldset className="rounded-xl border bg-muted/20 p-3 sm:p-4"><legend className="px-1 text-sm font-medium">Sources</legend><p className="mb-3 text-xs text-muted-foreground">Leave all sources unchecked to receive every source.</p><div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">{["marstek", "freelancehunt", "system"].map((source) => <label key={source} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs sm:text-sm transition-colors ${values.sources.includes(source) ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-100" : "border-input bg-input/30 text-muted-foreground hover:bg-muted"}`}><Checkbox checked={values.sources.includes(source)} onChange={(event) => setValues({ ...values, sources: event.target.checked ? [...values.sources, source] : values.sources.filter((item) => item !== source) })} />{source}</label>)}</div></fieldset>
     <footer className="flex flex-wrap items-center gap-2 border-t pt-3 sm:pt-5 [&>button]:flex-1 sm:[&>button]:flex-none"><Button type="submit" disabled={busy}>{busy ? "Working…" : "Save"}</Button>{channel && <><Button type="button" variant="outline" disabled={busy || !channel.enabled} onClick={() => void action("test")}>Send test</Button><Button type="button" variant="ghost" disabled={busy || !channel.enabled} onClick={() => void action("disable")}>Disable</Button></>}</footer>
     {message && <p role={error ? "alert" : "status"} className={`text-sm ${error ? "text-destructive" : "text-muted-foreground"}`}>{message}</p>}
   </form>;

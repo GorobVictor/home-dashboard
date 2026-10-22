@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bookmark, Check, EyeOff, LayoutGrid, List, MoreHorizontal } from "lucide-react";
-import type { ScoreReason, ProjectStatePatch } from "@home-dashboard/integrations/freelancehunt-rules";
+import type { ProjectStatePatch } from "@home-dashboard/integrations/freelancehunt-rules";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +16,7 @@ export interface FreelancehuntProjectView {
   id: number; name: string; description: string | null; url: string;
   budgetAmount: number | null; budgetCurrency: string | null; skills: string[];
   categories?: string[]; discoveredAt: string; publishedAt: string | null;
-  score: number; reasons: ScoreReason[]; saved: boolean; hidden: boolean; viewed: boolean; notes: string;
+  saved: boolean; hidden: boolean; viewed: boolean; notes: string;
 }
 interface LiveProject {
   name: string; description: string | null; url: string; budgetAmount: number | null;
@@ -88,11 +88,11 @@ function ProjectCard({ project, view, onActive }: { project: FreelancehuntProjec
     <Root className={view === "cards" ? `flex h-full flex-col gap-2 py-3 [--card-spacing:--spacing(3)] sm:gap-4 sm:[--card-spacing:--spacing(4)] ${!state.viewed ? "border-primary/40" : ""}` : "relative flex min-w-0 items-start gap-1 p-2 pr-1 hover:bg-muted/20"}>
       <DialogTrigger disabled={busy} render={<button type="button" aria-label={`Project details: ${project.name}`} className={`${view === "cards" ? "flex-1" : "min-w-0 flex-1 rounded-md px-1 py-1"} text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring`} />}>
         {view === "cards" ? <>
-          <CardHeader className="pb-2"><div className="mb-1 flex flex-wrap gap-1.5 sm:mb-2 sm:gap-2"><Badge variant={project.score >= 80 ? "default" : "secondary"}>{project.score}/100</Badge>{!state.viewed && <Badge variant="outline">New</Badge>}{state.saved && <Badge variant="outline">Saved</Badge>}{state.hidden && <Badge variant="outline">Hidden</Badge>}</div><CardTitle className="line-clamp-2 break-words text-sm sm:text-base">{project.name}</CardTitle><CardDescription className="text-xs font-medium text-foreground sm:text-sm">{budgetLabel(project)}</CardDescription></CardHeader>
+          <CardHeader className="pb-2"><div className="mb-1 flex flex-wrap gap-1.5 sm:mb-2 sm:gap-2">{!state.viewed && <Badge variant="outline">New</Badge>}{state.saved && <Badge variant="outline">Saved</Badge>}{state.hidden && <Badge variant="outline">Hidden</Badge>}</div><CardTitle className="line-clamp-2 break-words text-sm sm:text-base">{project.name}</CardTitle><CardDescription className="text-xs font-medium text-foreground sm:text-sm">{budgetLabel(project)}</CardDescription></CardHeader>
           <CardContent><p className="line-clamp-2 text-xs leading-5 text-muted-foreground sm:line-clamp-3 sm:text-sm">{project.description ?? "No description."}</p><p className="mt-2 line-clamp-1 text-xs text-muted-foreground sm:mt-3">{project.skills.join(", ") || "Skills not specified"}</p><p className="mt-1 text-[11px] text-muted-foreground sm:mt-2 sm:text-xs">{project.publishedAt ? dateLabel(project.publishedAt) + " UTC" : "Publication date unknown"}</p></CardContent>
         </> : <>
           <span className="flex min-w-0 items-start gap-1.5"><span aria-hidden="true" className={`mt-1.5 size-1.5 shrink-0 rounded-full ${state.viewed ? "bg-transparent" : "bg-emerald-400"}`} /><span className="line-clamp-2 min-w-0 text-[13px] leading-5 font-medium">{project.name}</span>{state.saved && <Bookmark aria-label="Saved" className="mt-0.5 size-3.5 shrink-0 fill-current text-emerald-300" />}</span>
-          <span className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pl-3 text-[11px] tabular-nums"><span className={project.score >= 80 ? "font-medium text-emerald-300" : "text-muted-foreground"}>{project.score}/100</span><span className="min-w-0 truncate font-medium">{project.budgetAmount == null ? "Budget —" : budgetLabel(project)}</span><time dateTime={project.publishedAt ?? undefined} title={project.publishedAt ? `${dateLabel(project.publishedAt)} UTC` : undefined} className="text-muted-foreground">{project.publishedAt ? compactDate(project.publishedAt) : "Date —"}</time>{!state.viewed && <span className="sr-only">New project</span>}</span>
+          <span className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pl-3 text-[11px] tabular-nums"><span className="min-w-0 truncate font-medium">{project.budgetAmount == null ? "Budget —" : budgetLabel(project)}</span><time dateTime={project.publishedAt ?? undefined} title={project.publishedAt ? `${dateLabel(project.publishedAt)} UTC` : undefined} className="text-muted-foreground">{project.publishedAt ? compactDate(project.publishedAt) : "Date —"}</time>{!state.viewed && <span className="sr-only">New project</span>}</span>
         </>}
       </DialogTrigger>
       {view === "cards" ? <div className="-mb-3 flex items-center justify-between gap-2 border-t pr-1 pl-2"><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => void mutate({ saved: !state.saved })}><Bookmark className={`size-3.5 ${state.saved ? "fill-current" : ""}`} />{state.saved ? "Saved" : "Save"}</Button>{actions}</div> : actions}
@@ -104,7 +104,6 @@ function ProjectCard({ project, view, onActive }: { project: FreelancehuntProjec
       {live && <p className="text-sm">{live.status ?? "Status unknown"}{live.bidCount !== null ? ` · Bids: ${live.bidCount}` : ""}{live.expiresAt ? ` · Until: ${dateLabel(live.expiresAt)} UTC` : ""}</p>}
       <div className="whitespace-pre-wrap break-words leading-6">{details.description ?? "No description."}</div>
       <div><h3 className="mb-2 font-medium">Skills</h3><div className="flex flex-wrap gap-2">{details.skills.map((skill) => <Badge key={skill} variant="secondary">{skill}</Badge>)}</div>{!!project.categories?.length && <p className="mt-2 text-xs text-muted-foreground">Categories: {project.categories.join(", ")}</p>}</div>
-      <section className="rounded-lg border p-3"><h3 className="font-medium">Relevance: {project.score}/100</h3><p className="mb-2 text-xs text-muted-foreground">Based on synchronized data and your saved profile. The total is capped at 0–100.</p><ul className="space-y-1 text-sm">{project.reasons.map((reason, i) => <li key={i} className="flex justify-between gap-3"><span className="break-words">{reason.rule}</span><span className="shrink-0 tabular-nums">{reason.weight > 0 ? "+" : ""}{reason.weight}</span></li>)}</ul></section>
       <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); void mutate({ notes }); }}><label className="text-sm font-medium" htmlFor={`notes-${project.id}`}>Personal note</label><textarea id={`notes-${project.id}`} className="min-h-24 w-full rounded-md border bg-background p-3 text-sm focus-visible:outline-ring" maxLength={3000} value={notes} onChange={(event) => setNotes(event.target.value)} /><Button type="submit" variant="outline" disabled={busy}>Save note</Button>{noteMessage && <p role="status" className="text-sm text-muted-foreground">{noteMessage}</p>}</form>
       {actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
       <DialogFooter className="grid grid-cols-2 sm:flex sm:flex-wrap"><Button type="button" variant="outline" disabled={busy} onClick={() => void mutate({ saved: !state.saved })}>{state.saved ? "Unsave" : "Save project"}</Button><Button type="button" variant="outline" disabled={busy} onClick={() => void mutate({ hidden: !state.hidden })}>{state.hidden ? "Restore" : "Hide"}</Button><Button className="col-span-2" render={<a href={details.url} target="_blank" rel="noreferrer" />}>Open in Freelancehunt</Button></DialogFooter>

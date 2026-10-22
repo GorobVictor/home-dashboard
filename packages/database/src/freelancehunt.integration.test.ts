@@ -4,7 +4,7 @@ import { getDatabase, disconnectDatabase } from "./client";
 import { saveFreelancehuntProjects, syncFreelancehuntCatalogue } from "./freelancehunt";
 import { getFreelancehuntWorkspace, updateFreelancehuntWorkspace, listPersonalFreelancehuntProjects, updateFreelancehuntProjectState, saveFreelancehuntPreset, deleteFreelancehuntPreset, getStoredFreelancehuntProject } from "./freelancehunt-workspace";
 import { saveNotificationChannel } from "./notifications";
-import { emptyProjectFilters, type ScoringProfile } from "@home-dashboard/integrations/freelancehunt-rules";
+import { emptyProjectFilters } from "@home-dashboard/integrations/freelancehunt-rules";
 import type { FreelancehuntProject } from "@home-dashboard/integrations";
 
 const testUrl = process.env.FREELANCEHUNT_TEST_DATABASE_URL;
@@ -14,12 +14,11 @@ test("Freelancehunt PostgreSQL workspace, filtering and notification deduplicati
   const db = getDatabase();
   const user = await db.user.create({ data: { firstName: "FH", lastName: "Test", login: "fh-test", passwordHash: "unused" } });
   const other = await db.user.create({ data: { firstName: "Other", lastName: "Test", login: "fh-other", passwordHash: "unused" } });
-  const scoring: ScoringProfile = { base: 0, rules: [{ field: "technology", term: "C#", weight: 90 }] };
   const sample = (id: number, overrides: Partial<FreelancehuntProject> = {}): FreelancehuntProject => ({ id, name: "C# Backend", description: null, url: `https://freelancehunt.com/project/${id}.html`, budgetAmount: 5000, budgetCurrency: "UAH", skills: ["C#"], skillIds: [24], categories: ["Programming"], publishedAt: new Date("2026-10-16T12:00:00Z"), ...overrides });
   try {
-    await updateFreelancehuntWorkspace(user.id, { scoring, notificationMinScore: 80 });
-    await updateFreelancehuntWorkspace(other.id, { scoring: { base: 0, rules: [] }, notificationMinScore: 80 });
-    const channel = await saveNotificationChannel({ name: "High relevance", chatId: "-12345", enabled: true, minSeverity: "info", sources: ["freelancehunt"], projectMinScore: 80, projectScoring: scoring });
+    await updateFreelancehuntWorkspace(user.id, { filters: { ...emptyProjectFilters, include: ["C#"] } });
+    await updateFreelancehuntWorkspace(other.id, { filters: { ...emptyProjectFilters, include: ["missing"] } });
+    const channel = await saveNotificationChannel({ name: "Project feed", chatId: "-12345", enabled: true, minSeverity: "info", sources: ["freelancehunt"] });
     await t.test("baseline is silent, repeated and concurrent synchronizations create one event per new ID", async () => {
       assert.equal((await saveFreelancehuntProjects([sample(100), sample(100)])).initial, true);
       assert.equal(await db.event.count(), 0);
@@ -29,9 +28,15 @@ test("Freelancehunt PostgreSQL workspace, filtering and notification deduplicati
       assert.equal(await db.event.count({ where: { type: "freelancehunt.project_created" } }), 2);
       assert.equal(await db.notification.count({ where: { userId: user.id } }), 1);
       assert.equal(await db.notification.count({ where: { userId: other.id } }), 0);
-      assert.equal(await db.notification.count({ where: { channelId: channel.id } }), 1);
+      assert.equal(await db.notification.count({ where: { channelId: channel.id } }), 2);
       await saveFreelancehuntProjects([sample(101)]);
-      assert.equal(await db.notification.count(), 2);
+      assert.equal(await db.notification.count(), 3);
+    });
+    await t.test("users see historical and new projects without materialized personal rows", async () => {
+      assert.equal(await db.freelancehuntProjectState.count(), 0);
+      assert.equal((await listPersonalFreelancehuntProjects(user.id, emptyProjectFilters)).total, 3);
+      assert.equal((await listPersonalFreelancehuntProjects(other.id, { ...emptyProjectFilters, state: "new" })).total, 3);
+      assert.equal((await listPersonalFreelancehuntProjects(other.id, { ...emptyProjectFilters, state: "viewed" })).total, 0);
     });
     await t.test("save, unsave, notes, viewed and hidden state belong to each user and survive restart", async () => {
       await updateFreelancehuntProjectState(user.id, 101, { saved: true, viewed: true, notes: "Private note" });
@@ -48,10 +53,10 @@ test("Freelancehunt PostgreSQL workspace, filtering and notification deduplicati
       assert.equal(page.projects[0].saved, false); assert.equal(page.projects[0].notes, "Private note");
       assert.equal((await listPersonalFreelancehuntProjects(user.id, { ...emptyProjectFilters, state: "new" })).total, 2);
     });
-    await t.test("server-side filters combine budget, currency, skills, categories, keywords, dates and scores", async () => {
-      const filters = { ...emptyProjectFilters, minBudget: 5000, maxBudget: 5000, currency: "UAH", skillIds: [24], categories: ["Programming"], include: ["backend"], exclude: ["wordpress"], from: "2026-10-16", to: "2026-10-16", minScore: 80, sort: "relevance" as const };
+    await t.test("server-side filters combine budget, currency, skills, categories, keywords, dates", async () => {
+      const filters = { ...emptyProjectFilters, minBudget: 5000, maxBudget: 5000, currency: "UAH", skillIds: [24], categories: ["Programming"], include: ["backend"], exclude: ["wordpress"], from: "2026-10-16", to: "2026-10-16" };
       assert.equal((await listPersonalFreelancehuntProjects(user.id, filters)).total, 2);
-      for (const change of [{ currency: "USD" }, { skillIds: [999] }, { categories: ["Design"] }, { include: ["missing"] }, { exclude: ["C#"] }, { from: "2026-10-17", to: "2026-10-18" }, { minScore: 91 }]) assert.equal((await listPersonalFreelancehuntProjects(user.id, { ...filters, ...change })).total, 0);
+      for (const change of [{ currency: "USD" }, { skillIds: [999] }, { categories: ["Design"] }, { include: ["missing"] }, { exclude: ["C#"] }, { from: "2026-10-17", to: "2026-10-18" }]) assert.equal((await listPersonalFreelancehuntProjects(user.id, { ...filters, ...change })).total, 0);
       // Missing descriptions must not disappear when an excluded word is absent.
       assert.equal((await listPersonalFreelancehuntProjects(user.id, { ...emptyProjectFilters, exclude: ["wordpress"] })).total, 3);
       await saveFreelancehuntProjects([sample(103, { name: "C# 100%_done", budgetAmount: 9000 }), sample(104, { name: "C# 100percent_done", budgetAmount: 100 })]);
@@ -59,16 +64,16 @@ test("Freelancehunt PostgreSQL workspace, filtering and notification deduplicati
       const byBudget = await listPersonalFreelancehuntProjects(user.id, { ...emptyProjectFilters, sort: "budget" });
       assert.equal(byBudget.projects[0].id, 103); assert.equal(byBudget.projects.at(-1)?.budgetAmount, null);
     });
-    await t.test("profiles recompute scores while presets, filters and personal actions persist", async () => {
+    await t.test("presets, filters and personal actions persist without duplicating per-user projects", async () => {
       const filters = { ...emptyProjectFilters, state: "saved" as const };
-      await updateFreelancehuntWorkspace(user.id, { filters, scoring: { base: 45, rules: [] } });
+      await updateFreelancehuntWorkspace(user.id, { filters });
       const workspace = await getFreelancehuntWorkspace(user.id);
       assert.deepEqual(workspace.filters, filters);
       const page = await listPersonalFreelancehuntProjects(user.id, { ...emptyProjectFilters, state: "viewed" });
-      assert.equal(page.projects[0].score, 45); assert.equal(page.projects[0].notes, "Private note");
-      const preset = await saveFreelancehuntPreset(user.id, "Backend", filters, scoring);
-      await saveFreelancehuntPreset(user.id, "Other", emptyProjectFilters, scoring);
-      await saveFreelancehuntPreset(user.id, "Backend", emptyProjectFilters, scoring);
+      assert.equal(page.projects[0].notes, "Private note");
+      const preset = await saveFreelancehuntPreset(user.id, "Backend", filters);
+      await saveFreelancehuntPreset(user.id, "Other", emptyProjectFilters);
+      await saveFreelancehuntPreset(user.id, "Backend", emptyProjectFilters);
       await deleteFreelancehuntPreset(other.id, preset.id);
       await disconnectDatabase();
       assert.equal((await getFreelancehuntWorkspace(user.id)).presets.length, 2);

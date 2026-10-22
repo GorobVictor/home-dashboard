@@ -2,7 +2,7 @@ import type { FreelancehuntProject, FreelancehuntThread, FreelancehuntSkill } fr
 import { uniqueNewProjects } from "@home-dashboard/integrations/freelancehunt-rules";
 import { getDatabase } from "./client";
 import { publishEventInTransaction, lockEventKey } from "./events";
-import { scoreNewProject } from "./freelancehunt-workspace";
+import { projectNotificationRecipients } from "./freelancehunt-workspace";
 
 const settingsId = "default";
 export const defaultFreelancehuntSkillIds = [103, 120, 121, 169, 175, 180, 183, 190, 24, 86];
@@ -80,7 +80,7 @@ export async function saveFreelancehuntProjects(projects: FreelancehuntProject[]
           skillIds: project.skillIds ?? [], categories: project.categories ?? [],
         },
       });
-      rows.push({ project, row, recipients: await scoreNewProject(transaction, row) });
+      rows.push({ project, row, recipients: await projectNotificationRecipients(transaction, row) });
     }
     if (!settings.projectsInitialized) {
       await transaction.freelancehuntSettings.update({ where: { id: settingsId }, data: { projectsInitialized: true } });
@@ -108,8 +108,7 @@ export async function syncFreelancehuntCatalogue(skills: FreelancehuntSkill[]) {
         const matched = (row.skills as string[]).flatMap((name) => { const skill = byName.get(name.toLocaleLowerCase("uk")); return skill ? [skill] : []; });
         const skillIds = [...new Set(matched.map((s) => s.id))], categories = [...new Set(matched.map((s) => s.groupName))];
         if (JSON.stringify(row.skillIds) === JSON.stringify(skillIds) && JSON.stringify(row.categories) === JSON.stringify(categories)) continue;
-        const updated = await tx.freelancehuntProject.update({ where: { id: row.id }, data: { skillIds, categories } });
-        await scoreNewProject(tx, updated);
+        await tx.freelancehuntProject.update({ where: { id: row.id }, data: { skillIds, categories } });
       }
       cursor = rows.at(-1)!.id;
     }

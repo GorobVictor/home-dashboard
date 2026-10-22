@@ -14,7 +14,6 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@home-dashboard/database": "0.1.0",
-    "@home-dashboard/docker-monitoring": "0.1.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
     "jose": "^6.2.12",

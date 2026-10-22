@@ -54,9 +54,7 @@ test("Marstek notifications show validated charge and threshold without inventin
   }
 });
 
-test("Docker, service health and channel test notifications use readable details", () => {
-  const docker = formatNotificationMessage({ ...base, source: "docker", type: "docker.container_stopped", severity: "warning", payload: { name: "worker", state: "exited" } }).text;
-  assert.match(docker, /Контейнер: <b>worker<\/b>\nСтан: <b>Зупинено<\/b>/);
+test("Service health and channel test notifications use readable details", () => {
   const system = formatNotificationMessage({ ...base, source: "system", type: "system.service_unavailable", severity: "error", payload: { service: "freelancehunt" } }).text;
   assert.match(system, /Сервіс: <b>freelancehunt<\/b>/);
   assert.match(system, /Система · Помилка/);

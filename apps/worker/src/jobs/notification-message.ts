@@ -10,7 +10,7 @@ interface NotificationEvent {
 }
 
 const severityLabels: Record<string, string> = { info: "Інформація", warning: "Увага", error: "Помилка", critical: "Критично" };
-const sourceLabels: Record<string, string> = { marstek: "Marstek", freelancehunt: "Freelancehunt", docker: "Docker", system: "Система" };
+const sourceLabels: Record<string, string> = { marstek: "Marstek", freelancehunt: "Freelancehunt", system: "Система" };
 const headings: Record<string, string> = {
   "freelancehunt.project_created": "💼 Новий проєкт",
   "freelancehunt.message_received": "✉️ Нове повідомлення",
@@ -21,10 +21,6 @@ const headings: Record<string, string> = {
   "marstek.device_online": "✅ Зв’язок із пристроєм відновлено",
   "marstek.grid_lost": "⚡ Електромережа недоступна",
   "marstek.grid_restored": "⚡ Електропостачання відновлено",
-  "docker.container_stopped": "⏹ Контейнер зупинено",
-  "docker.container_started": "▶️ Контейнер запущено",
-  "docker.container_unhealthy": "⚠️ Контейнер працює з помилками",
-  "docker.container_healthy": "✅ Справність контейнера відновлено",
   "system.service_unavailable": "🔴 Сервіс недоступний",
   "system.service_restored": "✅ Доступ до сервісу відновлено",
   "system.test_notification": "✅ Тестове сповіщення",
@@ -83,10 +79,6 @@ export function formatNotificationMessage(event: NotificationEvent): TelegramHtm
     if (typeof soc === "number" && Number.isFinite(soc) && soc >= 0 && soc <= 100) detail("Заряд", `${numberFormat.format(soc)}%`);
     const threshold = payload.threshold;
     if (event.type === "marstek.battery_low" && typeof threshold === "number" && Number.isFinite(threshold) && threshold >= 1 && threshold <= 90) detail("Поріг сповіщення", `${numberFormat.format(threshold)}%`);
-  } else if (event.source === "docker") {
-    detail("Контейнер", value("name"));
-    const states: Record<string, string> = { running: "Працює", exited: "Зупинено", dead: "Аварійно завершено", paused: "Призупинено", restarting: "Перезапускається", created: "Створено", removing: "Видаляється" };
-    if (typeof payload.state === "string") detail("Стан", Object.hasOwn(states, payload.state) ? states[payload.state] : value("state"));
   } else if (event.type === "system.test_notification") {
     details.push("Канал налаштовано. Telegram-сповіщення надходять успішно.");
   } else if (event.type === "system.service_unavailable" || event.type === "system.service_restored") {
