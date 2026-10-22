@@ -15,7 +15,6 @@ Implemented features:
 - Settings UI that loads the live Freelancehunt skill catalogue and persists only selected numeric skill IDs.
 - Browser toast notifications and optional Telegram messages for new Freelancehunt projects/messages.
 - Real-time refresh through PostgreSQL `NOTIFY` → authenticated WebSocket → browser, with a browser refresh fallback.
-- PgAdmin as a local database UI.
 - Centralized immutable events, personal notification inboxes and shared Telegram channels with durable delivery attempts/retries.
 
 Do not introduce the following without an explicit task: DTEK/weather/AI integration, public registration, multi-tenant roles, device-control actions, a queue, leader election, cloud deployment, or a second worker replica.
@@ -70,7 +69,6 @@ graph LR
   Worker -->|UDP unicast| Device[Marstek Venus E3]
   Worker -->|HTTPS| FH[Freelancehunt]
   Worker -->|HTTPS, optional| TG[Telegram]
-  PGAdmin[pgadmin, localhost only] --> DB
   DB -->|NOTIFY home_dashboard_events| Web
   Web -->|broadcast event| Browser
 ```
@@ -82,10 +80,8 @@ graph LR
 | `web` | Next.js plus custom WebSocket server | `127.0.0.1:${WEB_PORT:-3000}` |
 | `worker` | Marstek/Freelancehunt jobs | No public port; single replica assumption |
 | `setup` | Creates initial user from environment | `tools` profile; one-shot |
-| `pgadmin-passfile` | Writes PgAdmin passfile | One-shot helper |
-| `pgadmin` | Local DB UI | `127.0.0.1:${PGADMIN_PORT:-5050}` |
 
-Never expose PostgreSQL/PgAdmin publicly. Do not bind the dashboard beyond localhost without TLS and a proxy/auth review.
+Never expose PostgreSQL publicly. Do not bind the dashboard beyond localhost without TLS and a proxy/auth review.
 
 ## 4. Repository map
 
@@ -120,7 +116,6 @@ packages/
 docker/
   web.Dockerfile
   worker.Dockerfile
-  pgadmin/
 docker-compose.yml
 .env.example
 AGENTS.md
@@ -168,7 +163,7 @@ AGENTS.md
 | --- | --- |
 | `/login` | Login form |
 | `/dashboard` | Protected dashboard with Energy, Freelancehunt and My sites tabs |
-| `/dashboard?tab=sites` | Seven public HTTPS service links, opened in new browser tabs |
+| `/dashboard?tab=sites` | Six public HTTPS service links, opened in new browser tabs |
 | `/dashboard?tab=freelancehunt&page=N` | Server-side paginated projects and project dialog |
 | `/dashboard?device=ID&range=H` | Selected Marstek device and predefined range |
 | `/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD` | Custom UTC range; max 90 days and never future |
@@ -439,8 +434,7 @@ Never commit `.env`, tokens, passwords, credentials, or private local values. Ke
 | `POSTGRES_PASSWORD` | Compose | Required; Compose builds internal database URL |
 | `AUTH_JWT_SECRET` | web | Required, at least 32 UTF-8 bytes |
 | `INITIAL_USER_FIRST_NAME`, `INITIAL_USER_LAST_NAME`, `INITIAL_USER_LOGIN`, `INITIAL_USER_PASSWORD` | setup | Initial user; password must be 12+ chars |
-| `WEB_PORT`, `PGADMIN_PORT` | Compose | Local host ports; defaults 3000/5050 |
-| `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD` | pgadmin | Local admin credentials |
+| `WEB_PORT` | Compose | Local web port; default 3000 |
 | `MARSTEK_DEVICES` | worker | JSON device list |
 | `FREELANCEHUNT_API_TOKEN` | web + worker | Enables skills endpoint and monitoring |
 | `TELEGRAM_BOT_TOKEN` | worker | Secret; required for Telegram delivery, never persisted |
@@ -471,7 +465,7 @@ Web receives Freelancehunt token because settings load skills. Worker receives F
 | `docker compose ps` | Inspect service health |
 | `docker compose logs -f worker` | Inspect poll/notification logs |
 
-URLs: `http://127.0.0.1:3000` dashboard; `http://127.0.0.1:5050` PgAdmin.
+URL: `http://127.0.0.1:3000` dashboard.
 
 ### Safe local setup
 

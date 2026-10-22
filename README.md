@@ -8,7 +8,7 @@ Monorepo for the self-hosted home dashboard, with an authenticated Next.js app, 
 - `apps/worker` — Marstek and Freelancehunt polling jobs.
 - `packages/database` — Prisma schema, migrations, client, and user repository.
 - `packages/integrations` — shared Marstek UDP and Freelancehunt/Telegram clients with response validation.
-- `docker` — service Dockerfiles and pgAdmin setup.
+- `docker` — service Dockerfiles.
 
 The dashboard includes Marstek energy telemetry and Freelancehunt project/message monitoring, with optional Telegram notifications. See [AGENTS.md](AGENTS.md) for the architecture, security boundaries, and operating details.
 
@@ -25,7 +25,7 @@ For local telemetry development, set `DATABASE_URL` and `MARSTEK_DEVICES` in `.e
 
 ## Docker Compose
 
-Copy `.env.example` to `.env`. Set `POSTGRES_PASSWORD`, `PGADMIN_DEFAULT_PASSWORD`, and `AUTH_JWT_SECRET` to strong, distinct values. Generate the JWT secret with `openssl rand -base64 48`. Use a URL-safe PostgreSQL password (letters, digits, `_`, or `-`) because Compose also uses it in `DATABASE_URL`. Set `INITIAL_USER_FIRST_NAME`, `INITIAL_USER_LAST_NAME`, `INITIAL_USER_LOGIN`, and `INITIAL_USER_PASSWORD` for the first user. The password must contain 12–128 characters; the login must contain 3–50 lowercase letters, digits, `.`, `_`, or `-`.
+Copy `.env.example` to `.env`. Set `POSTGRES_PASSWORD` and `AUTH_JWT_SECRET` to strong, distinct values. Generate the JWT secret with `openssl rand -base64 48`. Use a URL-safe PostgreSQL password (letters, digits, `_`, or `-`) because Compose also uses it in `DATABASE_URL`. Set `INITIAL_USER_FIRST_NAME`, `INITIAL_USER_LAST_NAME`, `INITIAL_USER_LOGIN`, and `INITIAL_USER_PASSWORD` for the first user. The password must contain 12–128 characters; the login must contain 3–50 lowercase letters, digits, `.`, `_`, or `-`.
 
 ```bash
 cp .env.example .env
@@ -35,11 +35,11 @@ docker compose run --rm setup
 
 Compose runs the migration service after PostgreSQL is healthy and before starting web or worker. The `setup` command creates the initial user after migrations complete. It does not reset an existing user's password. To add another user, set different `INITIAL_USER_*` values and run `docker compose run --rm setup` again. Remove `INITIAL_USER_PASSWORD` from `.env` after use. For later schema deployments without creating a user, run `docker compose run --rm migrate`. The underlying migration command is `npm run db:migrate` inside a container with `DATABASE_URL` set.
 
-The dashboard is available at [http://localhost:3000](http://localhost:3000) and pgAdmin at [http://localhost:5050](http://localhost:5050). Sign in to pgAdmin with `PGADMIN_DEFAULT_EMAIL` and `PGADMIN_DEFAULT_PASSWORD` from `.env`. Its Home Dashboard PostgreSQL connection is imported from `docker/pgadmin/servers.json`; the database password comes from the generated pgpass file. PostgreSQL has no host port and both web interfaces bind to localhost.
+The dashboard is available at [http://localhost:3000](http://localhost:3000). PostgreSQL has no host port and the web interface binds to localhost.
 
-The **Мої сайти** tab links to Timeflow API, Timeflow, Portainer, Torrent, Plex, pgAdmin and Redis through their public HTTPS domains. Each service opens in a new browser tab.
+The **Мої сайти** tab links to Timeflow API, Timeflow, Portainer, Torrent, Plex and Redis through their public HTTPS domains. Each service opens in a new browser tab.
 
-Dashboard users sign in with their seeded login and password. There is no public registration endpoint. Passwords are stored as scrypt hashes, and the eight-hour JWT session is held in an HttpOnly cookie. The `postgres_data` and `pgadmin_data` volumes retain data across restarts. pgAdmin imports server definitions when its data volume is first created.
+Dashboard users sign in with their seeded login and password. There is no public registration endpoint. Passwords are stored as scrypt hashes, and the eight-hour JWT session is held in an HttpOnly cookie. The `postgres_data` volume retains database data across restarts.
 
 ## Marstek Venus E 3.0
 
