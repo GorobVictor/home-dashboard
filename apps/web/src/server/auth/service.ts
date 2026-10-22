@@ -1,5 +1,5 @@
 import type { NewUser, PublicUser, UserRepository } from "@home-dashboard/database";
-import { userRepository } from "@home-dashboard/database";
+import { createUser, createInitialUser, hasUsers, userRepository } from "@home-dashboard/database";
 import { hashPassword, verifyPassword } from "./password";
 
 export type AuthErrorCode = "invalid_input" | "invalid_credentials";
@@ -51,6 +51,22 @@ export async function prepareUser(input: unknown): Promise<NewUser> {
     login: normalizedLogin(fields.login),
     passwordHash: await hashPassword(password),
   };
+}
+
+interface UserCreationOperations {
+  hasUsers: typeof hasUsers;
+  findByLogin: UserRepository["findByLogin"];
+  createUser: typeof createUser;
+  createInitialUser: typeof createInitialUser;
+}
+
+export async function createConfiguredUser(input: unknown, initialOnly = false, operations: UserCreationOperations = { hasUsers, findByLogin: userRepository.findByLogin, createUser, createInitialUser }) {
+  // Existing installations must start even after initial credentials are removed.
+  if (initialOnly && await operations.hasUsers()) return { status: "already_initialized" as const };
+  const user = await prepareUser(input);
+  if (!initialOnly && await operations.findByLogin(user.login)) return { status: "already_exists" as const, login: user.login };
+  const created = initialOnly ? await operations.createInitialUser(user) : await operations.createUser(user);
+  return created ? { status: "created" as const, login: created.login } : { status: "already_initialized" as const };
 }
 
 export function createAuthService(repository: UserRepository = userRepository) {

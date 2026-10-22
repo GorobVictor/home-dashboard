@@ -5,7 +5,7 @@ export { severities, acceptsSeverity, shouldPublish, retryDelayMs, batteryState 
 export type { Severity } from "./event-policy";
 export * from "./notifications";
 export * from "./freelancehunt-workspace";
-export { createUser, userRepository } from "./users";
+export { createUser, createInitialUser, hasUsers, userRepository } from "./users";
 export type { NewUser, PublicUser, UserCredentials, UserRepository } from "./users";
 export {
   listMarstekDevices,

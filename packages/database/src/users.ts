@@ -39,6 +39,19 @@ export async function createUser(user: NewUser): Promise<PublicUser> {
   });
 }
 
+export async function hasUsers(): Promise<boolean> {
+  return Boolean(await getDatabase().user.findFirst({ select: { id: true } }));
+}
+
+export async function createInitialUser(user: NewUser): Promise<PublicUser | null> {
+  return getDatabase().$transaction(async (tx) => {
+    // Serialize competing first-start setup runs; never create a second default user.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('home_dashboard_initial_user', 0))`;
+    if (await tx.user.findFirst({ select: { id: true } })) return null;
+    return tx.user.create({ data: user, select: publicUserSelect });
+  });
+}
+
 export const userRepository: UserRepository = {
   async findByLogin(login) {
     return getDatabase().user.findUnique({

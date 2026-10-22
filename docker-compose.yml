@@ -38,6 +38,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      setup:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
@@ -51,7 +53,6 @@ services:
 
   setup:
     image: home-dashboard-web
-    profiles: ["tools"]
     environment:
       DATABASE_URL: postgresql://home_dashboard:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/home_dashboard
       INITIAL_USER_FIRST_NAME: ${INITIAL_USER_FIRST_NAME:-}
@@ -61,7 +62,7 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-    command: ["npm", "run", "db:create-user"]
+    command: ["npm", "run", "db:create-user", "--", "--if-empty"]
     restart: "no"
     networks:
       - default
@@ -97,6 +98,8 @@ services:
       postgres:
         condition: service_healthy
       migrate:
+        condition: service_completed_successfully
+      setup:
         condition: service_completed_successfully
     init: true
     restart: unless-stopped
