@@ -22,7 +22,7 @@ function normalizedLogin(value: unknown): string {
     throw new AuthError("invalid_input");
   }
   const login = value.trim().toLowerCase();
-  if (!/^[a-z0-9][a-z0-9._-]{2,49}$/.test(login)) {
+  if (!/^[a-z0-9][a-z0-9@._-]{2,49}$/.test(login)) {
     throw new AuthError("invalid_input");
   }
   return login;
