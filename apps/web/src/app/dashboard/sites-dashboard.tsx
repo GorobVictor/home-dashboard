@@ -1,4 +1,4 @@
-import { AppWindow, Braces, Clapperboard, Container, Download, ExternalLink, Layers3 } from "lucide-react";
+import { AppWindow, Braces, Clapperboard, Container, Database, Download, ExternalLink, Layers3 } from "lucide-react";
 
 const sites = [
   { name: "Timeflow API", host: "api.timeflow.club", description: "API сервісу Timeflow", icon: Braces },
@@ -6,6 +6,7 @@ const sites = [
   { name: "Portainer", host: "portainer.gorob.space", description: "Керування контейнерами", icon: Container },
   { name: "Torrent", host: "torrent.gorob.space", description: "Торент-завантаження", icon: Download },
   { name: "Plex", host: "plex.gorob.space", description: "Медіатека та перегляд відео", icon: Clapperboard },
+  { name: "pgAdmin", host: "pgadmin.gorob.space", description: "Керування PostgreSQL", icon: Database },
   { name: "Redis", host: "redis.gorob.space", description: "Керування Redis", icon: Layers3 },
 ] as const;
 
