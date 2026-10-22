@@ -94,45 +94,5 @@ services:
     init: true
     restart: unless-stopped
 
-  pgadmin-passfile:
-    container_name: home-dashboard-pgadmin-passfile
-    image: node:22-bookworm-slim
-    environment:
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-    volumes:
-      - pgadmin_passfile:/pgpass
-      - ./docker/pgadmin/write-pgpass.mjs:/write-pgpass.mjs:ro
-    command: ["node", "/write-pgpass.mjs"]
-    restart: "no"
-
-  pgadmin:
-    container_name: home-dashboard-pgadmin
-    image: dpage/pgadmin4:9.18
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?Set PGADMIN_DEFAULT_PASSWORD in .env}
-      PGPASS_FILE: /pgpass/pgpass
-      PGADMIN_DISABLE_POSTFIX: "1"
-    ports:
-      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-      - pgadmin_passfile:/pgpass:ro
-      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-      pgadmin-passfile:
-        condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/misc/ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    restart: unless-stopped
-
 volumes:
   postgres_data:
-  pgadmin_data:
-  pgadmin_passfile:
