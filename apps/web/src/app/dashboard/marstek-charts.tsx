@@ -23,12 +23,14 @@ const energyConfig = {
   dischargeWh: { label: "Discharged", color: "var(--chart-4)" },
 } satisfies ChartConfig;
 
-function timeLabel(value: string, hours: number) {
+function timeLabel(value: string | number, hours: number) {
   const date = new Date(value);
   return hours <= 24
     ? date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
     : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
+
+const tooltipTimeLabel = (value: unknown) => new Date(Number(value)).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 function unitValue(value: unknown, unit: string) {
   const number = Number(value);
@@ -40,9 +42,14 @@ const axisValue = (value: number) => value.toLocaleString("en-US", { notation: "
 const powerLabels: Record<string, string> = { charge: "Charging", discharge: "Discharging", pv: "Solar" };
 const energyLabels: Record<string, string> = { chargeWh: "Charged", dischargeWh: "Discharged" };
 
-export function MarstekCharts({ points, energy, hours, period }: Pick<Dashboard, "points" | "energy" | "hours" | "period">) {
-  const hasReadings = points.length >= 2;
-  const readings = hasReadings ? points : [];
+export function MarstekCharts({ points, energy, hours, period, rangeStart, rangeEnd }: Pick<Dashboard, "points" | "energy" | "hours" | "period" | "rangeStart" | "rangeEnd">) {
+  const hasReadings = points.filter((point) => point.charge !== null).length >= 2;
+  const readings = hasReadings ? points.map((point) => ({ ...point, timestamp: Date.parse(point.time) })) : [];
+  const timeAxis = {
+    dataKey: "timestamp", type: "number" as const, scale: "time" as const,
+    domain: [Date.parse(rangeStart), Date.parse(rangeEnd)], allowDataOverflow: true,
+    tickFormatter: (value: number) => timeLabel(value, hours), minTickGap: 36, tickLine: false, axisLine: false,
+  };
 
   return (
     <div className="grid min-w-0 gap-3 sm:gap-4 xl:grid-cols-2">
@@ -56,10 +63,10 @@ export function MarstekCharts({ points, energy, hours, period }: Pick<Dashboard,
           <AreaChart data={readings} margin={{ left: -20, right: 8 }}>
             <defs><linearGradient id="socFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="var(--color-soc)" stopOpacity={0.35}/><stop offset="95%" stopColor="var(--color-soc)" stopOpacity={0.02}/></linearGradient></defs>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
-            <XAxis dataKey="time" tickFormatter={(value: string) => timeLabel(value, hours)} minTickGap={36} tickLine={false} axisLine={false} />
+            <XAxis {...timeAxis} />
             <YAxis domain={[0, 100]} tickFormatter={(value: number) => `${value}%`} tickLine={false} axisLine={false} />
-            <ChartTooltip content={<ChartTooltipContent />} labelFormatter={(value) => timeLabel(String(value), hours)} />
-            <Area dataKey="soc" type="monotone" stroke="var(--color-soc)" fill="url(#socFill)" strokeWidth={2} connectNulls={false} isAnimationActive={false} />
+            <ChartTooltip content={<ChartTooltipContent />} labelFormatter={tooltipTimeLabel} />
+            <Area dataKey="soc" type="monotone" stroke="var(--color-soc)" fill="url(#socFill)" strokeWidth={2} dot={{ r: 1.5, strokeWidth: 0 }} connectNulls={false} isAnimationActive={false} />
           </AreaChart>
         </ChartContainer>
         </ChartFrame>
@@ -73,13 +80,13 @@ export function MarstekCharts({ points, energy, hours, period }: Pick<Dashboard,
         <ChartContainer config={powerConfig} className="h-full w-full aspect-auto" role="img" aria-label="Charge, discharge and solar power over time">
           <AreaChart data={readings} margin={{ left: -12, right: 8 }}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
-            <XAxis dataKey="time" tickFormatter={(value: string) => timeLabel(value, hours)} minTickGap={36} tickLine={false} axisLine={false} />
+            <XAxis {...timeAxis} />
             <YAxis tickLine={false} axisLine={false} tickFormatter={axisValue} width={44} />
-            <ChartTooltip content={<ChartTooltipContent formatter={(value, name) => <><span className="text-muted-foreground">{powerLabels[String(name)] ?? String(name)}</span><span className="ml-auto font-mono font-medium tabular-nums">{unitValue(value, "W")}</span></>} />} labelFormatter={(value) => timeLabel(String(value), hours)} />
+            <ChartTooltip content={<ChartTooltipContent formatter={(value, name) => <><span className="text-muted-foreground">{powerLabels[String(name)] ?? String(name)}</span><span className="ml-auto font-mono font-medium tabular-nums">{unitValue(value, "W")}</span></>} />} labelFormatter={tooltipTimeLabel} />
             <ChartLegend content={<ChartLegendContent />} />
-            <Area dataKey="charge" type="monotone" stroke="var(--color-charge)" fill="var(--color-charge)" fillOpacity={0.1} strokeWidth={2} isAnimationActive={false} />
-            <Area dataKey="discharge" type="monotone" stroke="var(--color-discharge)" fill="var(--color-discharge)" fillOpacity={0.1} strokeWidth={2} isAnimationActive={false} />
-            <Area dataKey="pv" type="monotone" stroke="var(--color-pv)" fill="transparent" strokeWidth={1.5} connectNulls={false} isAnimationActive={false} />
+            <Area dataKey="charge" type="monotone" stroke="var(--color-charge)" fill="var(--color-charge)" fillOpacity={0.1} strokeWidth={2} dot={{ r: 1.5, strokeWidth: 0 }} connectNulls={false} isAnimationActive={false} />
+            <Area dataKey="discharge" type="monotone" stroke="var(--color-discharge)" fill="var(--color-discharge)" fillOpacity={0.1} strokeWidth={2} dot={{ r: 1.5, strokeWidth: 0 }} connectNulls={false} isAnimationActive={false} />
+            <Area dataKey="pv" type="monotone" stroke="var(--color-pv)" fill="transparent" strokeWidth={1.5} dot={{ r: 1.5, strokeWidth: 0 }} connectNulls={false} isAnimationActive={false} />
           </AreaChart>
         </ChartContainer>
         </ChartFrame>
@@ -96,9 +103,9 @@ export function MarstekCharts({ points, energy, hours, period }: Pick<Dashboard,
         <ChartContainer config={energyConfig} className="h-full w-full aspect-auto" role="img" aria-label="Charged and discharged energy by time period">
           <BarChart data={energy} margin={{ left: -12, right: 8 }}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
-            <XAxis dataKey="time" tickFormatter={(value: string) => timeLabel(value, hours)} minTickGap={24} tickLine={false} axisLine={false} />
+            <XAxis {...timeAxis} />
             <YAxis tickLine={false} axisLine={false} tickFormatter={axisValue} width={44} />
-            <ChartTooltip content={<ChartTooltipContent formatter={(value, name) => <><span className="text-muted-foreground">{energyLabels[String(name)] ?? String(name)}</span><span className="ml-auto font-mono font-medium tabular-nums">{unitValue(value, "Wh")}</span></>} />} labelFormatter={(value) => timeLabel(String(value), hours)} />
+            <ChartTooltip content={<ChartTooltipContent formatter={(value, name) => <><span className="text-muted-foreground">{energyLabels[String(name)] ?? String(name)}</span><span className="ml-auto font-mono font-medium tabular-nums">{unitValue(value, "Wh")}</span></>} />} labelFormatter={(_, payload) => timeLabel(payload[0]?.payload.time ?? "", hours)} />
             <ChartLegend content={<ChartLegendContent />} />
             <Bar dataKey="chargeWh" fill="var(--color-chargeWh)" radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false} />
             <Bar dataKey="dischargeWh" fill="var(--color-dischargeWh)" radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false} />

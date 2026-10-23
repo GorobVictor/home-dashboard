@@ -54,7 +54,7 @@ export function EnergyDashboard({ dashboard, rangeQuery }: { dashboard: Dashboar
         <span className="rounded-full border px-3 py-1 text-xs text-muted-foreground">{dashboard.hours <= 24 ? "Hourly" : "Daily"} energy totals</span>
       </div>
       <RangeControls deviceId={selected.id} activeHours={dashboard.hours} rangeStart={dashboard.rangeStart} rangeEnd={dashboard.rangeEnd} />
-      <MarstekCharts points={dashboard.points} energy={dashboard.energy} hours={dashboard.hours} period={dashboard.period} />
+      <MarstekCharts points={dashboard.points} energy={dashboard.energy} hours={dashboard.hours} period={dashboard.period} rangeStart={dashboard.rangeStart} rangeEnd={dashboard.rangeEnd} />
     </section>
     <Telemetry latest={selected.latest} />
     {device.lastError && <p className="text-xs text-muted-foreground">Latest poll: {device.lastError.replaceAll("_", " ")}</p>}

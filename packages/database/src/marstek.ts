@@ -99,10 +99,10 @@ export interface MarstekMeasurementBucket {
   dischargeEnergyWh: number;
 }
 
-export async function listMarstekMeasurementBuckets(deviceId: string, since: Date, bucketSeconds: 60 | 600) {
+export async function listMarstekMeasurementBuckets(deviceId: string, since: Date, bucketSeconds: 60 | 600, until = new Date()) {
   return getDatabase().$queryRaw<MarstekMeasurementBucket[]>`
     SELECT
-      to_timestamp(floor(extract(epoch FROM sampled_at) / ${bucketSeconds}) * ${bucketSeconds}) AS "sampledAt",
+      greatest(to_timestamp(floor(extract(epoch FROM sampled_at) / ${bucketSeconds}) * ${bucketSeconds}), ${since}) AS "sampledAt",
       avg(soc_percent)::double precision AS "socPercent",
       avg(charge_power_w)::double precision AS "chargePowerW",
       avg(discharge_power_w)::double precision AS "dischargePowerW",
@@ -111,7 +111,7 @@ export async function listMarstekMeasurementBuckets(deviceId: string, since: Dat
       sum(charge_energy_wh)::double precision AS "chargeEnergyWh",
       sum(discharge_energy_wh)::double precision AS "dischargeEnergyWh"
     FROM marstek_measurements
-    WHERE device_id = ${deviceId} AND sampled_at >= ${since}
+    WHERE device_id = ${deviceId} AND sampled_at >= ${since} AND sampled_at <= ${until}
     GROUP BY 1
     ORDER BY 1 ASC
   `;

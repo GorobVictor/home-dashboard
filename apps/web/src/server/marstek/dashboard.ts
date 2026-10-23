@@ -1,4 +1,5 @@
 import { listMarstekDevices, listMarstekMeasurementBuckets } from "@home-dashboard/database";
+import { buildMarstekHistory } from "./history";
 
 export type DashboardRange = 1 | 6 | 24 | 168 | 720;
 
@@ -34,34 +35,11 @@ export async function getMarstekDashboard(deviceId: string | undefined, hours: D
   const rangeStart = from ?? new Date(now - hours * 3_600_000);
   const rangeEnd = to ?? new Date(now);
   const rangeHours = Math.max(1, Math.ceil((rangeEnd.getTime() - rangeStart.getTime()) / 3_600_000));
+  const bucketSeconds = rangeHours <= 24 ? 60 : 600;
   const measurements = selected
-    ? await listMarstekMeasurementBuckets(selected.id, rangeStart, rangeHours <= 24 ? 60 : 600)
+    ? await listMarstekMeasurementBuckets(selected.id, rangeStart, bucketSeconds, rangeEnd)
     : [];
-  const step = Math.max(1, Math.ceil(measurements.length / 400));
-  const points = measurements
-    .filter((_, index) => index % step === 0 || index === measurements.length - 1)
-    .map((item) => ({
-      time: item.sampledAt.toISOString(),
-      soc: item.socPercent,
-      charge: item.chargePowerW,
-      discharge: item.dischargePowerW,
-      grid: item.gridPowerW,
-      pv: item.pvPowerW,
-    }));
-  const bucketMs = rangeHours <= 24 ? 3_600_000 : 24 * 3_600_000;
-  const buckets = new Map<number, { chargeWh: number; dischargeWh: number }>();
-  for (const item of measurements) {
-    const key = Math.floor(item.sampledAt.getTime() / bucketMs) * bucketMs;
-    const bucket = buckets.get(key) ?? { chargeWh: 0, dischargeWh: 0 };
-    bucket.chargeWh += item.chargeEnergyWh;
-    bucket.dischargeWh += item.dischargeEnergyWh;
-    buckets.set(key, bucket);
-  }
-  const energy = [...buckets].map(([time, value]) => ({
-    time: new Date(time).toISOString(),
-    chargeWh: Math.round(value.chargeWh),
-    dischargeWh: Math.round(value.dischargeWh),
-  }));
+  const history = buildMarstekHistory(measurements, rangeStart, rangeEnd, bucketSeconds);
   const latest = selected?.measurements[0];
   return {
     hours: rangeHours,
@@ -105,11 +83,6 @@ export async function getMarstekDashboard(deviceId: string | undefined, hours: D
         powerSource: latest.powerSource,
       } : null,
     } : null,
-    points,
-    energy,
-    period: {
-      chargeWh: Math.round(measurements.reduce((sum, item) => sum + item.chargeEnergyWh, 0)),
-      dischargeWh: Math.round(measurements.reduce((sum, item) => sum + item.dischargeEnergyWh, 0)),
-    },
+    ...history,
   };
 }
