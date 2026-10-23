@@ -192,12 +192,14 @@ Login, dashboard and settings share the dark graphite palette through `dashboard
 2. Defines online as enabled with a measurement younger than 3 minutes.
 3. Chooses requested device, otherwise first enabled, otherwise first available.
 4. Loads selected-device historical buckets for requested/custom range.
-5. Samples chart points to approximately 400 maximum.
+5. Samples chart points to approximately 400, preserving outage boundaries and null gap markers.
 6. Returns fleet overview, latest selected telemetry, points, energy totals, and range bounds.
 
 Predefined `DashboardRange`: `1`, `6`, `24`, `168`, `720` hours (1 h, 6 h, 24 h, 7 d, 30 d). Keep `/api/marstek/overview` validation aligned if ranges change.
 
 Historical buckets are 60 seconds for ≤24 h and 600 seconds above that. Do not pass raw one-second rows to multi-day charts.
+
+History queries must apply both range bounds. Charts use a numeric time axis spanning the requested range; missing history must not be stretched or connected across outages. Energy buckets without measurements remain null, distinct from measured zero. `server/marstek/history.ts` owns sampling, gap markers and energy summaries.
 
 ### Time to empty
 
