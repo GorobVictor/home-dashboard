@@ -1,6 +1,6 @@
 import "dotenv/config";
 import cron from "node-cron";
-import { disconnectDatabase, getFreelancehuntSettings, pruneMarstekMeasurements, syncMarstekDevices, initializeLegacyTelegramChannel } from "@home-dashboard/database";
+import { disconnectDatabase, getFreelancehuntSettings, pruneMarstekMeasurements, syncMarstekDevices, initializeLegacyTelegramChannel, backfillMarstekMinutes, recordHealth, publishDailyDigests } from "@home-dashboard/database";
 import { parseMarstekDevices, type MarstekDeviceConfig } from "@home-dashboard/integrations";
 import { pollMarstekDevices } from "./jobs/marstek-poll";
 import { pollFreelancehunt } from "./jobs/freelancehunt-poll";
@@ -16,6 +16,20 @@ let freelancehuntTimer: ReturnType<typeof setTimeout> | undefined;
 let freelancehuntPromise: Promise<void> | undefined;
 let notificationTimer: ReturnType<typeof setTimeout> | undefined;
 let notificationPromise: Promise<void> | undefined;
+let maintenanceTimer: ReturnType<typeof setTimeout> | undefined;
+let maintenancePromise: Promise<void> | undefined;
+let lastDigestCheck = 0;
+
+function scheduleMaintenance(): void {
+  if (stopping) return;
+  maintenanceTimer = setTimeout(() => {
+    maintenancePromise = (async () => {
+      await recordHealth("worker", true);
+      await backfillMarstekMinutes();
+      if (Date.now() - lastDigestCheck > 15 * 60000) { await publishDailyDigests(); lastDigestCheck = Date.now(); }
+    })().catch(() => console.error("maintenance_failed", { code: "database_failure" })).finally(scheduleMaintenance);
+  }, 5000);
+}
 
 function scheduleNotifications(): void {
   if (stopping) return;
@@ -44,7 +58,12 @@ async function pruneOldMeasurements(): Promise<void> {
   pruning = true;
   try {
     const before = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-    const removed = await pruneMarstekMeasurements(before);
+    let removed = 0;
+    while (!stopping) {
+      const batch = await pruneMarstekMeasurements(before); removed += batch;
+      if (batch < 200000) break;
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
     console.info("marstek_retention_complete", { removed });
   } catch (error) {
     console.error("marstek_retention_failed", { error: error instanceof Error ? error.name : "unknown_error" });
@@ -60,7 +79,7 @@ function scheduleFreelancehuntPolling(delayMs = 1_000): void {
     freelancehuntPromise = (async () => {
       try {
       const settings = await getFreelancehuntSettings();
-      await pollFreelancehunt({
+      const backoff = await pollFreelancehunt({
         enabled: settings.enabled,
         projectPollingEnabled: settings.projectPollingEnabled,
         messagePollingEnabled: settings.messagePollingEnabled,
@@ -70,7 +89,7 @@ function scheduleFreelancehuntPolling(delayMs = 1_000): void {
         projectsInitialized: settings.projectsInitialized,
         messagesInitialized: settings.messagesInitialized,
       });
-      const nextDelay = Math.max(5_000, settings.pollIntervalSeconds * 1_000 - (Date.now() - startedAt));
+      const nextDelay = Math.max(5_000, backoff, settings.pollIntervalSeconds * 1_000 - (Date.now() - startedAt));
       scheduleFreelancehuntPolling(nextDelay);
       } catch (error) {
         console.error("freelancehunt_poll_failed", { error: error instanceof Error ? error.message : "unknown_error" });
@@ -83,6 +102,7 @@ function scheduleFreelancehuntPolling(delayMs = 1_000): void {
 
 async function main(): Promise<void> {
   await syncMarstekDevices(devices);
+  pruningPromise = pruneOldMeasurements();
   const legacyChatId = process.env.TELEGRAM_CHAT_ID?.trim();
   if (legacyChatId && /^(-?\d{1,20}|@[a-zA-Z][a-zA-Z0-9_]{4,31})$/.test(legacyChatId)) await initializeLegacyTelegramChannel(legacyChatId);
   console.info("worker_started", { marstekDevices: devices.length, pollingSeconds: 1 });
@@ -92,6 +112,7 @@ async function main(): Promise<void> {
   for (const device of devices) schedulePolling(device);
   scheduleFreelancehuntPolling();
   scheduleNotifications();
+  scheduleMaintenance();
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.once(signal, async () => {
@@ -100,9 +121,10 @@ async function main(): Promise<void> {
       for (const timer of pollTimers.values()) clearTimeout(timer);
       if (freelancehuntTimer) clearTimeout(freelancehuntTimer);
       if (notificationTimer) clearTimeout(notificationTimer);
+      if (maintenanceTimer) clearTimeout(maintenanceTimer);
       retentionTask.stop();
       console.info("worker_stopping", { signal });
-      await Promise.allSettled([...pollingPromises.values(), pruningPromise, freelancehuntPromise, notificationPromise]);
+      await Promise.allSettled([...pollingPromises.values(), pruningPromise, freelancehuntPromise, notificationPromise, maintenancePromise]);
       await disconnectDatabase();
       process.exit(0);
     });
