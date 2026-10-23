@@ -164,7 +164,10 @@ AGENTS.md
 | --- | --- |
 | `/login` | Login form |
 | `/dashboard` | Protected dashboard with Energy, Freelancehunt and My sites tabs |
-| `/dashboard?tab=sites` | Seven public HTTPS service links, opened in new browser tabs; pgAdmin is hosted in a separate Compose stack |
+| `/dashboard?tab=sites` | Shared editable HTTPS links, grouped/ordered in PostgreSQL; pgAdmin remains a separate stack |
+| `/settings/sites` | Protected shared link editor (up to 100 HTTPS links; no server fetches) |
+| `/notifications` | Protected personal inbox with unread filter, pagination and project/device links |
+| `/status` | Protected worker/integration heartbeat, device freshness, DB size and delivery backlog |
 | `/dashboard?tab=freelancehunt&page=N` | Server-side paginated projects and project dialog |
 | `/dashboard?device=ID&range=H` | Selected Marstek device and predefined range |
 | `/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD` | Custom UTC range; max 90 days and never future |
@@ -174,7 +177,7 @@ AGENTS.md
 
 Default to Server Components. Existing focused client components:
 
-- `live-updates.tsx`: WebSocket, toast notifications, 250 ms refresh debounce, reconnect backoff 1–30 seconds.
+- `live-updates.tsx`: WebSocket, Ukrainian toasts, reconnect backoff 1–30 seconds, focus/reconnect resync and a 60-second page fallback. Marstek invalidations update a separate client snapshot through `/api/marstek/live`; they never refresh unrelated pages. The live snapshot has its own 10-second fallback.
 - `freelancehunt-projects.tsx`: responsive project listing and accessible details dialog.
 - `range-controls.tsx`: predefined/custom ranges.
 - `marstek-charts.tsx`: Recharts charts.
@@ -197,7 +200,7 @@ Login, dashboard and settings share the dark graphite palette through `dashboard
 
 Predefined `DashboardRange`: `1`, `6`, `24`, `168`, `720` hours (1 h, 6 h, 24 h, 7 d, 30 d). Keep `/api/marstek/overview` validation aligned if ranges change.
 
-Historical buckets are 60 seconds for ≤24 h and 600 seconds above that. Do not pass raw one-second rows to multi-day charts.
+`marstek_minutes` stores transactionally updated weighted minute aggregates. The worker backfills old history in checkpointed hourly batches. History keeps minute outage boundaries even for long ranges, samples to approximately 400 points, and uses hourly/daily energy bars. Cache only summaries/sampled points for 60 seconds, never full multi-month row arrays. Do not pass raw one-second rows to multi-day charts.
 
 History queries must apply both range bounds. Charts use a numeric time axis spanning the requested range; missing history must not be stretched or connected across outages. Energy buckets without measurements remain null, distinct from measured zero. `server/marstek/history.ts` owns sampling, gap markers and energy summaries.
 
@@ -232,13 +235,13 @@ Channel name is exactly `home_dashboard_events`. Payloads must remain compact JS
 
 | Event | Producer | Browser action |
 | --- | --- | --- |
-| `marstek.measurement.saved` | `saveMarstekReading` | Debounced refresh |
+| `marstek.measurement.saved` | `saveMarstekReading` | Invalidate latest telemetry only; historical page refresh is bounded |
 | `freelancehunt.project.discovered` | `saveFreelancehuntProjects` | Toast/Open action, refresh |
 | `freelancehunt.message.discovered` | `saveFreelancehuntThreads` | Toast/Open action, refresh |
-| `connection.ready` | custom server | Connection acknowledgement only |
+| `connection.ready` / `connection.resynced` | custom server | Refresh HTTP state after connecting or reconnecting the PostgreSQL listener |
 | `notifications.changed` | event/notification repositories | Inbox reload and debounced page refresh |
 
-`apps/web/src/server.ts` runs Next and `ws` together. It owns PostgreSQL `LISTEN`, reconnection after failure, 30-second socket pings and graceful shutdown. Do not replace this with a Next route handler: WebSocket upgrades depend on this custom-server arrangement.
+`apps/web/src/server.ts` runs Next and `ws` in development and production. It owns PostgreSQL `LISTEN`, reconnection, 30-second ping/pong liveness, session-expiry timers, user-existence rechecks, slow-client disconnection and graceful shutdown. It forwards development HMR upgrades to Next. Do not replace this with a Next route handler. Login limits are process-local, bounded by account/IP and concurrent hashing; the custom server overwrites `x-internal-client-ip` from the actual socket.
 
 For a new event:
 
@@ -286,10 +289,10 @@ flowchart TD
 - Scheduling belongs in `apps/worker/src/index.ts`; reusable transport is integrations and persistence is database.
 - Each device schedules next work only in the previous run's `finally`, preventing overlap.
 - `pollMarstekDevices()` processes devices in groups of four.
-- Main status client: 800 ms timeout, one attempt. Details use a longer retrying client, cached for 60 seconds to preserve one-second status cadence.
+- Main status client: 800 ms timeout, one attempt. Details refresh every 60 seconds and expire after three minutes without success. `batteryDetailsAt` records freshness; invalid optional fields become null without discarding a valid main status.
 - Device read failures record `lastError`; identical failures log no more than once per minute. Persistence failures are logged separately and must never mark a responding device unavailable. Timeouts must not stop worker.
 - Startup upserts/enables configured devices and disables removed ones.
-- Retention runs at 03:17 UTC, deleting readings older than 90 days.
+- Retention runs at startup and 03:17 UTC, deleting raw readings and minute aggregates older than 90 days in bounded batches, yielding between batches and honoring shutdown.
 
 ### Units and semantics
 
@@ -297,7 +300,7 @@ flowchart TD
 | --- | --- |
 | `socPercent` | `0..100` |
 | `batteryPowerW` | Positive charging, negative discharging |
-| `chargePowerW` / `dischargePowerW` | Non-negative directional values |
+| `chargePowerW` / `dischargePowerW` | Non-negative directional values, null when power is unavailable |
 | `powerSource` | `reported`, `derived`, `unavailable`; label derived values honestly |
 | Grid/PV/off-grid/meter values | Instantaneous watts, nullable |
 | Capacity and cumulative totals | Watt-hours, nullable |
@@ -311,7 +314,7 @@ Directional energy uses trapezoidal integration:
 energy_Wh = (previous_power_W + current_power_W) / 2 × elapsed_hours
 ```
 
-Integration is skipped after gaps above 5 minutes, so outages never create invented energy.
+Integration is null for a first sample, an unknown endpoint or a gap above 5 minutes, so unavailable power never creates measured zero or invented energy. The main time-to-empty placement stays instantaneous; the separately labelled reserve estimate uses a five-minute mean and assumes energy scales linearly with SOC.
 
 ### Add a Marstek metric
 
@@ -600,3 +603,14 @@ Done means applicable code is in right boundary, types/tests pass or gap is stat
 - `freelancehunt.integration.test.ts` requires a fresh disposable `FREELANCEHUNT_TEST_DATABASE_URL` ending in `_freelancehunt_test`, with committed migrations applied. It checks actual SQL filters, personal state persistence/isolation, presets, projects without personal state rows, baseline/concurrent deduplication and filter-based notification recipients. Default tests remain offline.
 
 Container monitoring and control are managed separately in Portainer. Do not add Docker socket access or container-management features to the dashboard without an explicit task.
+
+## 19. Extended dashboard operations
+
+- `docs/api.md` defines new endpoint contracts; `docs/improvements.md` documents behavior, backups and test commands. `/api/health` returns minimal public readiness only; operational details require `/status` authentication.
+- All display dates use Ukrainian formatting and Europe/Kyiv. Machine CSV timestamps and date-only range inputs remain explicitly UTC. Today-ending custom ranges clamp to now and invalid dates show an error.
+- `Site` is shared household configuration. URLs must be bounded HTTPS without credentials; mutations require authentication/same-origin. No site URL is fetched by the server.
+- Personal project workflow is `none`, `todo`, `applied`, `discussion`, `done`. It filters lists but never notification recipients. Direct project links may load a synchronized project outside the current filters, with only the requesting user's notes/state.
+- Freelancehunt pagination uses official `links.next` to detect more pages, but constructs its own safe page URLs. Budgets are five project and three thread pages per cycle. Cursor and baseline progress commit with each batch. Initial multi-cycle baselines remain silent; Retry-After pauses the provider, while other project failures do not block threads. Catalogue updates use short transactions and a version hash.
+- Channel filters add event types/device IDs, Kyiv quiet hours and optional daily digests. Empty arrays mean all. Critical matching events bypass quiet hours and digest batching; tests bypass filters/quiet hours. Quiet delivery is deferred without spending attempts. Digests summarize yesterday after 09:00 Kyiv and deduplicate permanently by channel/date. Missing bot configuration still preserves pending deliveries.
+- `scripts/backup.sh` runs matching-image `pg_dump`, validates the archive, writes atomically with private permissions and keeps 14 days. `verify-backup.sh` restores only into a newly created temporary database. `install-backup-schedule.sh` configures host scheduling after 03:30 Kyiv, with wake catch-up. Backups and test artifacts must stay excluded from Git and Docker contexts.
+- `npm run test:integration` creates, migrates and destroys disposable databases through `TEST_DATABASE_ADMIN_URL`. `npm run test:e2e` uses synthetic users and an isolated production server/browser. Do not use production databases or external credentials for either. `.github/workflows/ci.yml` runs these checks. Postman fixtures support real HTTP pagination/429 verification without publishing resources.

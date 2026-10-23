@@ -1,5 +1,9 @@
 # Home Dashboard
 
+See [the October 2026 improvements](docs/improvements.md) for temperature/energy
+analytics, the personal inbox, workflow statuses, shared site editing, system health,
+notification rules/digests, private scheduled backups and automated verification.
+
 Monorepo for the self-hosted home dashboard, with an authenticated Next.js app, PostgreSQL storage, and a background worker.
 
 ## Repository layout
