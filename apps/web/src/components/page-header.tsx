@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { BatteryFull } from "lucide-react";
+import { BatteryFull, Activity } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { headerIconButtonClassName } from "@/lib/ui-layout";
 
@@ -14,6 +14,6 @@ export function PageHeader({ title, mobileTitle = title, children }: { title: st
       <div className="hidden size-11 shrink-0 place-items-center rounded-2xl border border-emerald-300/15 bg-emerald-400/10 sm:grid"><BatteryFull aria-hidden="true" className="size-5 text-emerald-300" /></div>
       <div className="min-w-0"><p className="text-[9px] font-medium uppercase tracking-[0.15em] text-muted-foreground sm:text-xs">Home Dashboard</p><h1 title={title} className="mt-0.5 truncate text-lg leading-tight font-semibold tracking-tight sm:mt-1 sm:text-3xl"><span className="sm:hidden">{mobileTitle}</span><span className="hidden sm:inline">{title}</span></h1></div>
     </div>
-    <div className="flex shrink-0 items-center gap-1 sm:gap-2">{children}</div>
+    <div className="flex shrink-0 items-center gap-1 sm:gap-2"><HeaderLink href="/status" label="Стан системи"><Activity aria-hidden="true" className="size-4" /></HeaderLink>{children}</div>
   </header>;
 }
