@@ -7,7 +7,7 @@ export function PageError({ title, description, reset }: { title: string; descri
     <div className="w-full max-w-lg space-y-4 rounded-2xl border bg-card p-5 sm:p-8">
       <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
       <p role="alert" className="text-sm leading-6 text-muted-foreground">{description}</p>
-      <Button variant="outline" className="min-h-11" onClick={reset}>Try again</Button>
+      <Button variant="outline" className="min-h-11" onClick={reset}>Повторити</Button>
     </div>
   </main></div>;
 }

@@ -22,7 +22,7 @@ function PageSkeleton({ title, mobileTitle, label, children, narrow = false, act
     <PageHeader title={title} mobileTitle={mobileTitle}>
       <div aria-hidden="true" className="flex gap-1 sm:gap-2">
         <Skeleton className={headerIconButtonClassName} /><Skeleton className={headerIconButtonClassName} />
-        {actions === "dashboard" ? <Skeleton className={`${headerLogoutButtonClassName} inline-flex items-center justify-center rounded-lg border border-transparent px-2.5 text-sm font-medium`}><span className="invisible hidden sm:inline">Sign out</span></Skeleton> : actions === "icons" ? <Skeleton className={headerIconButtonClassName} /> : null}
+        {actions === "dashboard" ? <Skeleton className={`${headerLogoutButtonClassName} inline-flex items-center justify-center rounded-lg border border-transparent px-2.5 text-sm font-medium`}><span className="invisible hidden sm:inline">Вийти</span></Skeleton> : actions === "icons" ? <Skeleton className={headerIconButtonClassName} /> : null}
       </div>
     </PageHeader>
     <LoadingState label={label} className="min-w-0 space-y-3 sm:space-y-6">{children}</LoadingState>
@@ -31,7 +31,7 @@ function PageSkeleton({ title, mobileTitle, label, children, narrow = false, act
 
 export function DashboardSkeleton({ tab = "energy", projectView = "cards" }: { tab?: string; projectView?: SavedView }) {
   const projects = tab === "freelancehunt", sites = tab === "sites";
-  return <PageSkeleton title={sites ? "Мої сайти" : projects ? "Your workspace" : "Your energy, at a glance."} mobileTitle={sites ? "Мої сайти" : projects ? "Workspace" : "Energy"} label="Loading dashboard" actions="dashboard">
+  return <PageSkeleton title={sites ? "Мої сайти" : projects ? "Ваш робочий простір" : "Ваша енергія — головне"} mobileTitle={sites ? "Мої сайти" : projects ? "Робочий простір" : "Енергія"} label="Loading dashboard" actions="dashboard">
     <div className="grid grid-cols-[0.8fr_1.4fr_1fr] gap-1 rounded-xl border bg-muted/30 p-1 sm:w-fit sm:grid-cols-[4.25rem_8.5rem_6rem]">{[0, 1, 2].map((index) => <Skeleton key={index} className="h-11 rounded-lg sm:h-9" />)}</div>
     {sites ? <SitesSkeleton /> : projects ? <ProjectsSkeleton view={projectView} /> : <EnergySkeleton />}
   </PageSkeleton>;
@@ -74,7 +74,7 @@ function SitesSkeleton() {
 }
 
 export function SettingsSkeleton() {
-  return <PageSkeleton title="Settings" label="Loading settings" actions="settings">
+  return <PageSkeleton title="Налаштування" label="Loading settings" actions="settings">
     <div className="hidden sm:block"><Heading /></div><Skeleton className="h-11 w-64 rounded-lg" />
     <div className="grid items-start gap-4 lg:grid-cols-2">
       <div className="space-y-4"><Panel><Heading />{[0, 1, 2].map((index) => <SettingSkeleton key={index} />)}<div className="space-y-3 border-t pt-4"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-28 rounded-xl" /><Skeleton className="h-3 w-3/4" /></div></Panel><Panel><Heading /><SettingSkeleton /></Panel></div>
@@ -93,7 +93,7 @@ function RecordSkeleton() {
 }
 
 export function EventsSkeleton() {
-  return <PageSkeleton title="Event log" label="Loading events" narrow>
+  return <PageSkeleton title="Журнал подій" label="Loading events" narrow>
     <Panel><div className="sm:hidden"><Skeleton className="h-5 w-32" /></div><div className="hidden sm:block"><Fields count={6} /></div></Panel>
     <Skeleton className="h-4 w-24" /><div className="space-y-2 sm:space-y-3">{Array.from({ length: 6 }, (_, index) => <RecordSkeleton key={index} />)}</div>
     <div className="flex justify-between"><Skeleton className="h-5 w-12" /><Skeleton className="h-5 w-32" /></div>
@@ -101,7 +101,7 @@ export function EventsSkeleton() {
 }
 
 export function NotificationSettingsSkeleton() {
-  return <PageSkeleton title="Notifications and Telegram" mobileTitle="Notifications" label="Loading notification channels">
+  return <PageSkeleton title="Сповіщення та Telegram" mobileTitle="Сповіщення" label="Loading notification channels">
     <div className="rounded-xl border bg-card p-3"><Skeleton className="h-5 w-56 max-w-full" /></div>
     <Panel><Heading /><Fields /><div className="flex flex-wrap gap-3">{[0, 1, 2].map((index) => <Skeleton key={index} className="h-8 w-24 rounded-lg" />)}</div><SettingSkeleton /><div className="border-t pt-3"><Skeleton className="h-9 w-24 rounded-lg" /></div></Panel>
     <Heading /><DeliveryPaginationSkeleton />
