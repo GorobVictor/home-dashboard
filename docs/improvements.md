@@ -37,11 +37,17 @@ initial baselines and Retry-After. Ordinary project failures do not block thread
 provider-wide rate limiting pauses both streams. Category backfill uses short
 transactions and skips complete rows when the catalogue is unchanged.
 
+Channel event choices include only implemented automatic producers. Unsupported event
+filters are rejected by the API. Removal migrations preserve mixed selections, disable
+channels that would otherwise become unfiltered, and preserve immutable history.
+
 Telegram rules add event/device selection, Kyiv quiet hours and an opt-in daily
-summary after 09:00 Kyiv for yesterday. Critical matching events bypass quiet
-hours and digest batching. A startup catch-up and permanent deduplication key avoid
+summary for yesterday, scheduled at 09:00 Europe/Kyiv in addition to individual
+notifications. Enabling a digest never suppresses matching individual events.
+Critical matching events bypass quiet hours. A startup catch-up and permanent deduplication key avoid
 repeating yesterday's digest. Tests bypass filtering/quiet hours. Existing channels
-keep their old behavior until edited. No bot token enters the database or browser.
+keep their saved filters and quiet hours. No bot token enters the database or browser. Inline help across settings, filters,
+charts, telemetry, sites, inbox and status supports hover, keyboard focus and touch.
 
 ## Backups
 

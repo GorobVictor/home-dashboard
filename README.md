@@ -10,7 +10,7 @@ Monorepo for the self-hosted home dashboard, with an authenticated Next.js app, 
 
 - `apps/web` — Next.js App Router app and UI.
 - `apps/worker` — Marstek and Freelancehunt polling jobs.
-- `packages/database` — Prisma schema, migrations, client, and user repository.
+- `packages/database` — Prisma schema, migrations, client, and repositories for users, telemetry, projects, events and notifications.
 - `packages/integrations` — shared Marstek UDP and Freelancehunt/Telegram clients with response validation.
 - `docker` — service Dockerfiles.
 
@@ -94,7 +94,7 @@ Events and pending notifications are persisted together. The existing single wor
 
 Telegram notifications use HTML formatting with event-specific headings, readable Ukrainian severity labels, and timestamps in `Europe/Kyiv` (labelled Kyiv, with automatic daylight-saving adjustment). Project alerts include the available budget and a named Freelancehunt link; battery, device and service alerts show relevant details from the saved event. Dynamic values are escaped and bounded before HTML is assembled; arbitrary event payload fields are never included. Link previews stay disabled. The **Test** action in notification settings uses the same formatting and delivery path.
 
-Automatic events cover low/recovered/full battery, offline/online Marstek devices, new Freelancehunt projects/unread messages, and Freelancehunt service failure/recovery after three failed cycles. Initial observations establish baselines; a stale device does not alert until failed polls confirm an outage. Availability confirmation survives worker/database-client reconnects; observation gaps over 30 seconds restart the confirmation window. `MARSTEK_LOW_BATTERY_PERCENT` defaults to 20 (range 1–90); recovery is five points higher. Full-charge detection rearms below 98%. Confirmed grid transition support is provided through `observeMarstekGrid()`, but automatic `marstek.grid_lost`/`marstek.grid_restored` detection remains unavailable: the current Venus E3 UDP RPCs expose grid power, not grid availability. Zero watts and CT disconnection are not reliable outage signals. See the [manufacturer's protocol](https://static-eu.marstekenergy.com/ems/resource/agreement/MarstekDeviceOpenApi.pdf).
+Automatic events cover low/recovered/full battery, offline/online Marstek devices, new Freelancehunt projects/unread messages, and Freelancehunt service failure/recovery after three failed cycles. Initial observations establish baselines; a stale device does not alert until failed polls confirm an outage. Availability confirmation survives worker/database-client reconnects; observation gaps over 30 seconds restart the confirmation window. `MARSTEK_LOW_BATTERY_PERCENT` defaults to 20 (range 1–90); recovery is five points higher. Full-charge detection rearms below 98%. Only implemented event types are available in channel filters; unsupported types are rejected by the settings API.
 
 Shared database exports `publishEvent()` and `observeEvent()` support permanent deduplication keys, configurable deduplication windows and durable transition observations with optional cooldowns. New event producers must pass only bounded, non-secret domain data. `notifications.changed` uses the existing PostgreSQL/WebSocket invalidation path, with a 30-second inbox polling fallback. No automation engine or extra service is introduced.
 
