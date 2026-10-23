@@ -24,6 +24,7 @@ const headings: Record<string, string> = {
   "system.service_unavailable": "🔴 Сервіс недоступний",
   "system.service_restored": "✅ Доступ до сервісу відновлено",
   "system.test_notification": "✅ Тестове сповіщення",
+  "system.daily_digest": "📊 Добовий підсумок",
 };
 const dateFormat = new Intl.DateTimeFormat("uk-UA", {
   timeZone: "Europe/Kyiv", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
@@ -79,6 +80,9 @@ export function formatNotificationMessage(event: NotificationEvent): TelegramHtm
     if (typeof soc === "number" && Number.isFinite(soc) && soc >= 0 && soc <= 100) detail("Заряд", `${numberFormat.format(soc)}%`);
     const threshold = payload.threshold;
     if (event.type === "marstek.battery_low" && typeof threshold === "number" && Number.isFinite(threshold) && threshold >= 1 && threshold <= 90) detail("Поріг сповіщення", `${numberFormat.format(threshold)}%`);
+  } else if (event.type === "system.daily_digest") {
+    details.push(fragment(event.title, 200));
+    if (typeof payload.summary === "string") details.push(fragment(payload.summary, 1800));
   } else if (event.type === "system.test_notification") {
     details.push("Канал налаштовано. Telegram-сповіщення надходять успішно.");
   } else if (event.type === "system.service_unavailable" || event.type === "system.service_restored") {
