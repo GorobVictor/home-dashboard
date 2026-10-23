@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { MarstekPollingReader, parseMarstekDevices, readMarstekDevice } from "./marstek";
+import { MarstekPollingReader, parseMarstekDevices, readMarstekDevice, toMarstekReading } from "./marstek";
 
 const device = { id: "venus-e3-1", name: "Venus E3", host: "192.168.3.224", port: 30000 };
 
@@ -70,4 +70,18 @@ test("out-of-range and empty status payloads are rejected", async () => {
   await assert.rejects(readMarstekDevice(device, client), /invalid_measurement/);
   const empty = { async request() { return {}; } };
   await assert.rejects(readMarstekDevice(device, empty), /invalid_response/);
+});
+
+test("unknown power stays null and malformed optional details do not erase valid status", () => {
+  const reading = toMarstekReading({ bat_soc: 50 }, { bat_temp: "bad", charg_flag: 1 }, null, new Date());
+  assert.equal(reading.chargePowerW, null); assert.equal(reading.dischargePowerW, null);
+  assert.equal(reading.batteryTemperatureC, null); assert.equal(reading.chargeAllowed, null);
+});
+test("failed optional RPCs expire cached details after three minutes", async () => {
+  let now = Date.parse("2026-10-23T12:00:00Z"), success = true;
+  const reader = new MarstekPollingReader({ async request() { return { bat_soc: 70, bat_power: -100 }; } }, { async request(_device, method) { if (!success) throw new Error("timeout"); return method === "Bat.GetStatus" ? { bat_temp: 25, bat_capacity: 2000 } : { mode: "Auto" }; } }, () => now);
+  assert.equal((await reader.read(device)).batteryTemperatureC,25); success = false;
+  now += 60000; assert.equal((await reader.read(device)).batteryTemperatureC,25);
+  now += 180000; const expired = await reader.read(device);
+  assert.equal(expired.batteryTemperatureC,null); assert.equal(expired.remainingCapacityWh,null); assert.equal(expired.batteryDetailsAt,null); assert.equal(expired.socPercent,70);
 });

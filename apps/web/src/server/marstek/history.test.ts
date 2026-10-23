@@ -27,16 +27,17 @@ test("outage boundaries survive downsampling and break every plotted series", ()
   assert.ok(gapIndex > 0);
   assert.equal(history.points[gapIndex - 1].time, at(501).toISOString());
   assert.equal(history.points[gapIndex + 1].time, at(562).toISOString());
-  assert.deepEqual(Object.values(history.points[gapIndex]).slice(1), [null, null, null, null, null]);
+  assert.deepEqual(Object.values(history.points[gapIndex]).slice(1), [null, null, null, null, null, null]);
 });
 
 test("weekly history preserves missing days and distinguishes missing energy from measured zero", () => {
   const history = buildMarstekHistory([reading(0, 0), reading(10, 0), reading(6 * 1440, 5)], start, at(7 * 1440), 600);
   assert.equal(history.energy.length, 7);
   assert.deepEqual(history.energy.map((bucket) => bucket.chargeWh), [0, null, null, null, null, null, 5]);
-  assert.equal(history.points[1].time, at(10).toISOString());
-  assert.equal(history.points[2].charge, null);
-  assert.equal(history.points[3].time, at(6 * 1440).toISOString());
+  const tenMinutes = history.points.findIndex(point => point.time === at(10).toISOString());
+  assert.ok(tenMinutes > 0);
+  assert.equal(history.points[tenMinutes + 1].charge, null);
+  assert.equal(history.points.at(-1)?.time, at(6 * 1440).toISOString());
   assert.equal(history.energy[6].timestamp - history.energy[0].timestamp, 6 * 864e5);
 });
 

@@ -13,13 +13,14 @@ export interface MarstekReading {
   socPercent: number | null;
   batteryPowerW: number | null;
   powerSource: "reported" | "derived" | "unavailable";
-  chargePowerW: number;
-  dischargePowerW: number;
+  chargePowerW: number | null;
+  dischargePowerW: number | null;
   flow: "charging" | "discharging" | "idle" | "unknown";
   gridPowerW: number | null;
   offgridPowerW: number | null;
   pvPowerW: number | null;
   batteryTemperatureC: number | null;
+  batteryDetailsAt?: Date | null;
   remainingCapacityWh: number | null;
   ratedCapacityWh: number | null;
   gridInputTotalWh: number | null;
@@ -142,7 +143,7 @@ export async function readMarstekDevice(
   return toMarstekReading(es, battery, modeStatus, new Date());
 }
 
-type CachedDetails = { battery: RpcResult | null; modeStatus: RpcResult | null; refreshedAt: number };
+type CachedDetails = { battery: RpcResult | null; modeStatus: RpcResult | null; refreshedAt: number; batteryAt: number; modeAt: number };
 
 export class MarstekPollingReader {
   private readonly details = new Map<string, CachedDetails>();
@@ -150,31 +151,39 @@ export class MarstekPollingReader {
   constructor(
     private readonly statusClient: Pick<MarstekUdpClient, "request"> = new MarstekUdpClient(800, 1),
     private readonly detailClient: Pick<MarstekUdpClient, "request"> = new MarstekUdpClient(),
+    private readonly now: () => number = Date.now,
   ) {}
 
   async read(device: MarstekDeviceConfig): Promise<MarstekReading> {
     const es = await this.statusClient.request(device, "ES.GetStatus");
-    const sampledAt = new Date();
+    const sampledAt = new Date(this.now());
     let details = this.details.get(device.id);
-    if (!details || Date.now() - details.refreshedAt >= 60_000) {
+    if (!details || this.now() - details.refreshedAt >= 60_000) {
       // Slow optional RPCs run only once per minute; the main status RPC runs every second.
       await pause(500);
       const battery = await this.detailClient.request(device, "Bat.GetStatus").catch(() => null);
+      const batteryAt = this.now();
       await pause(500);
       const modeStatus = await this.detailClient.request(device, "ES.GetMode").catch(() => null);
       details = {
         battery: battery ?? details?.battery ?? null,
         modeStatus: modeStatus ?? details?.modeStatus ?? null,
-        refreshedAt: Date.now(),
+        refreshedAt: this.now(),
+        batteryAt: battery ? batteryAt : details?.batteryAt ?? 0,
+        modeAt: modeStatus ? this.now() : details?.modeAt ?? 0,
       };
       this.details.set(device.id, details);
     }
-    return toMarstekReading(es, details.battery, details.modeStatus, sampledAt);
+    // A responding status RPC must not make indefinitely cached details look fresh.
+    const battery = this.now() - details.batteryAt < 180_000 ? details.battery : null;
+    return toMarstekReading(es, battery, this.now() - details.modeAt < 180_000 ? details.modeStatus : null, sampledAt, battery ? new Date(details.batteryAt) : null);
   }
 }
 
-function toMarstekReading(es: RpcResult, battery: RpcResult | null, modeStatus: RpcResult | null, sampledAt: Date): MarstekReading {
-  const socPercent = optionalNumber(es.bat_soc, 0, 100) ?? optionalNumber(battery?.soc, 0, 100);
+export function toMarstekReading(es: RpcResult, battery: RpcResult | null, modeStatus: RpcResult | null, sampledAt: Date, batteryDetailsAt: Date | null = battery ? sampledAt : null): MarstekReading {
+  const optionalMetric = (value: unknown, minimum: number, maximum: number) => { try { return optionalNumber(value, minimum, maximum); } catch { return null; } };
+  const optionalFlag = (value: unknown) => { try { return optionalBoolean(value); } catch { return null; } };
+  const socPercent = optionalNumber(es.bat_soc, 0, 100) ?? optionalMetric(battery?.soc, 0, 100);
   const gridPowerW = optionalNumber(es.ongrid_power, -20_000, 20_000);
   const offgridPowerW = optionalNumber(es.offgrid_power, -20_000, 20_000);
   const pvPowerW = optionalNumber(es.pv_power, -20_000, 20_000);
@@ -189,23 +198,24 @@ function toMarstekReading(es: RpcResult, battery: RpcResult | null, modeStatus: 
     socPercent,
     batteryPowerW,
     powerSource: reportedPower !== null ? "reported" : derivedPower !== null ? "derived" : "unavailable",
-    chargePowerW: Math.max(0, batteryPowerW ?? 0),
-    dischargePowerW: Math.max(0, -(batteryPowerW ?? 0)),
+    chargePowerW: batteryPowerW === null ? null : Math.max(0, batteryPowerW),
+    dischargePowerW: batteryPowerW === null ? null : Math.max(0, -batteryPowerW),
     flow,
     gridPowerW,
     offgridPowerW,
     pvPowerW,
-    batteryTemperatureC: optionalNumber(battery?.bat_temp, -50, 120),
-    remainingCapacityWh: optionalNumber(battery?.bat_capacity, 0, 100_000),
-    ratedCapacityWh: optionalNumber(battery?.rated_capacity, 0, 100_000) ?? optionalNumber(es.bat_cap, 0, 100_000),
+    batteryTemperatureC: optionalMetric(battery?.bat_temp, -50, 120),
+    batteryDetailsAt,
+    remainingCapacityWh: optionalMetric(battery?.bat_capacity, 0, 100_000),
+    ratedCapacityWh: optionalMetric(battery?.rated_capacity, 0, 100_000) ?? optionalNumber(es.bat_cap, 0, 100_000),
     gridInputTotalWh: optionalNumber(es.total_grid_input_energy, 0, 1_000_000_000),
     gridOutputTotalWh: optionalNumber(es.total_grid_output_energy, 0, 1_000_000_000),
     pvTotalWh: (() => { const value = optionalNumber(es.total_pv_energy, 0, 100_000_000); return value === null ? null : value * 10; })(),
     loadTotalWh: optionalNumber(es.total_load_energy, 0, 1_000_000_000),
-    chargeAllowed: optionalBoolean(battery?.charg_flag),
-    dischargeAllowed: optionalBoolean(battery?.dischrg_flag),
+    chargeAllowed: optionalFlag(battery?.charg_flag),
+    dischargeAllowed: optionalFlag(battery?.dischrg_flag),
     mode: typeof mode === "string" && mode.length <= 32 ? mode : null,
     ctConnected: modeStatus?.ct_state === 1 ? true : modeStatus?.ct_state === 0 ? false : null,
-    meterPowerW: optionalNumber(modeStatus?.total_power, -20_000, 20_000),
+    meterPowerW: optionalMetric(modeStatus?.total_power, -20_000, 20_000),
   };
 }
