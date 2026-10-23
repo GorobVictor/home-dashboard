@@ -287,7 +287,7 @@ flowchart TD
 - Each device schedules next work only in the previous run's `finally`, preventing overlap.
 - `pollMarstekDevices()` processes devices in groups of four.
 - Main status client: 800 ms timeout, one attempt. Details use a longer retrying client, cached for 60 seconds to preserve one-second status cadence.
-- Failure records `lastError`; identical failures log no more than once per minute. Timeouts must not stop worker.
+- Device read failures record `lastError`; identical failures log no more than once per minute. Persistence failures are logged separately and must never mark a responding device unavailable. Timeouts must not stop worker.
 - Startup upserts/enables configured devices and disables removed ones.
 - Retention runs at 03:17 UTC, deleting readings older than 90 days.
 
@@ -584,9 +584,10 @@ Done means applicable code is in right boundary, types/tests pass or gap is stat
 - Delivery is processed every two seconds by the existing single worker. Claim/update and individual attempts are persisted, with a 120 s lease and six-attempt budget. An expired attempt becomes `unknown`; retries honor Telegram backoff. Missing bot configuration does not consume attempts. Do not claim exactly-once external delivery; ambiguous responses can duplicate messages.
 - `apps/worker/src/jobs/notification-message.ts` renders saved events as bounded Telegram HTML with escaped dynamic fields, event-specific Ukrainian headings/details, safe HTTPS Freelancehunt links and explicitly labelled `Europe/Kyiv` timestamps. Keep formatting out of immutable event records and browser inbox titles. The integrations client accepts plain strings for legacy callers or explicit HTML messages; never truncate assembled HTML or expose arbitrary payload fields.
 - Changing a channel cancels pending work instead of redirecting old notifications. In-flight HTTP may finish. DELETE archives/disables the channel so history survives. Tests bypass severity/source filters, but not channel enablement.
-- Automatic Marstek events cover low/recovered/full battery and device offline/online. Initial observations are silent except an already stale/offline device. Current RPCs lack a trustworthy grid-presence signal: `observeMarstekGrid` supports confirmed transitions but is deliberately not fed grid-power or CT connectivity guesses.
+- Automatic Marstek events cover low/recovered/full battery and device offline/online. Availability transitions require three minutes of observed read failures or 30 seconds of successful reads for recovery. `EventState.candidateValue`, `candidateSinceAt` and `lastObservedAt` persist confirmation; gaps over 30 seconds or backwards clock changes restart it so host/worker pauses are not mistaken for device outages. Initial observations are silent, including a stale device until failed polls confirm the outage. Live dashboard freshness remains based on measurement age. Current RPCs lack a trustworthy grid-presence signal: `observeMarstekGrid` supports confirmed transitions but is deliberately not fed grid-power or CT connectivity guesses.
 - Freelancehunt discoveries publish central events in the existing persistence transactions while keeping legacy WebSocket events. Three failed polling cycles produce `system.service_unavailable`; recovery produces `system.service_restored`. Telegram delivery failures stay in delivery history to avoid recursive alerts.
 - `events.integration.test.ts` requires an explicit disposable `EVENTS_TEST_DATABASE_URL` ending in `_events_test` and fresh migrations. Default tests require no database or external credentials.
+- `marstek.integration.test.ts` requires a fresh disposable `MARSTEK_TEST_DATABASE_URL` ending in `_marstek_test`. It checks stable availability transitions, reconnect-safe confirmation and notification fanout without contacting a device or Telegram.
 
 ## 18. Freelancehunt personal workspace
 
