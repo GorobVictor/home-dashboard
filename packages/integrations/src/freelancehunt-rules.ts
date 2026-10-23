@@ -5,8 +5,11 @@ export interface ProjectFilters {
   from: string; to: string;
   state: "all" | "new" | "viewed" | "saved" | "hidden";
   sort: "date" | "budget";
+  workflow: "all" | "none" | "todo" | "applied" | "discussion" | "done";
 }
-export const emptyProjectFilters: ProjectFilters = { minBudget: null, maxBudget: null, currency: "", skillIds: [], categories: [], include: [], exclude: [], from: "", to: "", state: "all", sort: "date" };
+export const projectWorkflows = { none: "Без статусу", todo: "Подати заявку", applied: "Заявку подано", discussion: "Обговорення", done: "Завершено" } as const;
+export type ProjectWorkflow = keyof typeof projectWorkflows;
+export const emptyProjectFilters: ProjectFilters = { minBudget: null, maxBudget: null, currency: "", skillIds: [], categories: [], include: [], exclude: [], from: "", to: "", state: "all", sort: "date", workflow: "all" };
 
 export function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid_input");
@@ -31,16 +34,17 @@ export function parseProjectFilters(value: unknown): ProjectFilters {
   for (const date of [input.from, input.to]) if (typeof date !== "string" || (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date))) throw new Error("invalid_input");
   if (input.from && input.to && input.from > input.to) throw new Error("invalid_input");
   if (!["all", "new", "viewed", "saved", "hidden"].includes(input.state) || !["date", "budget"].includes(input.sort)) throw new Error("invalid_input");
-  return { minBudget, maxBudget, currency: input.currency, skillIds: [...new Set(input.skillIds)], categories: strings(input.categories), include: strings(input.include), exclude: strings(input.exclude), from: input.from, to: input.to, state: input.state, sort: input.sort };
+  if (input.workflow !== "all" && !Object.hasOwn(projectWorkflows, input.workflow)) throw new Error("invalid_input");
+  return { minBudget, maxBudget, currency: input.currency, skillIds: [...new Set(input.skillIds)], categories: strings(input.categories), include: strings(input.include), exclude: strings(input.exclude), from: input.from, to: input.to, state: input.state, sort: input.sort, workflow: input.workflow };
 }
-export interface ProjectStatePatch { saved?: boolean; hidden?: boolean; viewed?: true; notes?: string }
+export interface ProjectStatePatch { saved?: boolean; hidden?: boolean; viewed?: true; notes?: string; workflow?: ProjectWorkflow }
 export function parseProjectStatePatch(value: unknown): ProjectStatePatch {
   const input = record(value);
-  if (!Object.keys(input).length || Object.keys(input).some((key) => !["saved", "hidden", "viewed", "notes"].includes(key)) || ["saved", "hidden"].some((key) => key in input && typeof input[key] !== "boolean") || ("viewed" in input && input.viewed !== true) || ("notes" in input && (typeof input.notes !== "string" || input.notes.length > 3000))) throw new Error("invalid_input");
+  if (!Object.keys(input).length || Object.keys(input).some((key) => !["saved", "hidden", "viewed", "notes", "workflow"].includes(key)) || ["saved", "hidden"].some((key) => key in input && typeof input[key] !== "boolean") || ("viewed" in input && input.viewed !== true) || ("notes" in input && (typeof input.notes !== "string" || input.notes.length > 3000)) || ("workflow" in input && (typeof input.workflow !== "string" || !Object.hasOwn(projectWorkflows, input.workflow)))) throw new Error("invalid_input");
   return input as ProjectStatePatch;
 }
 export function projectStateChanges(patch: ProjectStatePatch, now = new Date()) {
-  return { ...(patch.saved === undefined ? {} : { savedAt: patch.saved ? now : null }), ...(patch.hidden === undefined ? {} : { hiddenAt: patch.hidden ? now : null }), ...(patch.viewed ? { viewedAt: now } : {}), ...(patch.notes === undefined ? {} : { notes: patch.notes }) };
+  return { ...(patch.saved === undefined ? {} : { savedAt: patch.saved ? now : null }), ...(patch.hidden === undefined ? {} : { hiddenAt: patch.hidden ? now : null }), ...(patch.viewed ? { viewedAt: now } : {}), ...(patch.notes === undefined ? {} : { notes: patch.notes }), ...(patch.workflow === undefined ? {} : { workflow: patch.workflow }) };
 }
 export function uniqueNewProjects<T extends { id: number }>(projects: T[], known: Set<number>): T[] {
   const seen = new Set(known);

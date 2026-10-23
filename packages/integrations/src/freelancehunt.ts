@@ -1,5 +1,9 @@
 const apiBaseUrl = "https://api.freelancehunt.com/v2";
 
+export class FreelancehuntError extends Error {
+  constructor(public readonly code: string, public readonly retryAfterSeconds = 0) { super(code); }
+}
+
 export interface FreelancehuntProject {
   id: number;
   name: string;
@@ -57,7 +61,7 @@ function link(value: unknown, fallback: string): string {
 }
 
 export class FreelancehuntClient {
-  constructor(private readonly token: string, private readonly timeoutMs = 10_000) {}
+  constructor(private readonly token: string, private readonly timeoutMs = 10_000, private readonly baseUrl = apiBaseUrl) {}
 
   async getProject(id: number): Promise<FreelancehuntProject & { status: string | null; bidCount: number | null; expiresAt: Date | null }> {
     if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647) throw new Error("invalid_project_id");
@@ -71,18 +75,29 @@ export class FreelancehuntClient {
   }
 
   async listProjects(skillIds: number[]): Promise<FreelancehuntProject[]> {
+    return (await this.projectPage(skillIds, 1)).items;
+  }
+
+  async projectPage(skillIds: number[], page: number) {
+    if (!Number.isInteger(page) || page < 1 || page > 10000) throw new Error("invalid_page");
     const query = new URLSearchParams();
     if (skillIds.length > 0) query.set("filter[skill_id]", skillIds.join(","));
-    query.set("page[number]", "1");
-    const data = await this.request(`/projects?${query.toString()}`);
+    query.set("page[number]", String(page));
+    const envelope = await this.requestEnvelope(`/projects?${query.toString()}`);
+    const data = envelope.data;
     if (!Array.isArray(data)) throw new Error("freelancehunt_invalid_projects_response");
-    return data.map((item) => this.toProject(item)).filter((item): item is FreelancehuntProject => item !== null);
+    return { items: data.map((item) => this.toProject(item)).filter((item): item is FreelancehuntProject => item !== null), more: typeof object(envelope.links)?.next === "string" };
   }
 
   async listThreads(): Promise<FreelancehuntThread[]> {
-    const data = await this.request("/threads?page[number]=1");
+    return (await this.threadPage(1)).items;
+  }
+
+  async threadPage(page: number) {
+    if (!Number.isInteger(page) || page < 1 || page > 10000) throw new Error("invalid_page");
+    const envelope = await this.requestEnvelope(`/threads?page[number]=${page}`), data = envelope.data;
     if (!Array.isArray(data)) throw new Error("freelancehunt_invalid_threads_response");
-    return data.map((item) => this.toThread(item)).filter((item): item is FreelancehuntThread => item !== null);
+    return { items: data.map((item) => this.toThread(item)).filter((item): item is FreelancehuntThread => item !== null), more: typeof object(envelope.links)?.next === "string" };
   }
 
   async listSkills(): Promise<FreelancehuntSkill[]> {
@@ -100,18 +115,26 @@ export class FreelancehuntClient {
   }
 
   private async request(path: string): Promise<unknown> {
+    return (await this.requestEnvelope(path)).data;
+  }
+
+  private async requestEnvelope(path: string): Promise<ApiObject> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
-      const response = await fetch(`${apiBaseUrl}${path}`, {
+      const response = await fetch(`${this.baseUrl}${path}`, {
         cache: "no-store",
         headers: { Authorization: `Bearer ${this.token}`, Accept: "application/json", "Accept-Language": "uk" },
         signal: controller.signal,
       });
-      if (!response.ok) throw new Error(response.status === 429 ? "freelancehunt_rate_limited" : `freelancehunt_http_${response.status}`);
+      if (!response.ok) {
+        const retry = response.headers.get("retry-after");
+        const seconds = retry && /^\d+$/.test(retry) ? Number(retry) : retry ? Math.ceil((Date.parse(retry) - Date.now()) / 1000) : 60;
+        throw new FreelancehuntError(response.status === 429 ? "freelancehunt_rate_limited" : `freelancehunt_http_${response.status}`, response.status === 429 ? Math.min(86400, Math.max(60, Number.isFinite(seconds) ? seconds : 60)) : 0);
+      }
       const body = object(await response.json());
       if (!body || !("data" in body)) throw new Error("freelancehunt_invalid_response");
-      return body.data;
+      return body;
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") throw new Error("freelancehunt_timeout");
       throw error;
