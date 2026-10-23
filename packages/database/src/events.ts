@@ -1,7 +1,7 @@
 import type { Prisma } from "../generated/client/client";
 import { createHash, randomUUID } from "node:crypto";
 import { getDatabase } from "./client";
-import { acceptsSeverity, shouldPublish, batteryState, type Severity } from "./event-policy";
+import { acceptsSeverity, shouldPublish, batteryState, marstekAvailabilityState, type Severity } from "./event-policy";
 
 export interface EventInput {
   source: string;
@@ -82,9 +82,25 @@ export async function observeEventInTransaction(tx: EventTransaction, key: strin
   return event;
 }
 
+export async function observeMarstekAvailability(tx: EventTransaction, deviceId: string, available: boolean, observedAt = new Date()) {
+  const key = `device:${deviceId}`;
+  await lockEventKey(tx, key);
+  const previous = await tx.eventState.findUnique({ where: { key } });
+  const state = marstekAvailabilityState(previous, available, observedAt);
+  const online = state.value === "online";
+  const event = await observeEventInTransaction(tx, key, state.value, {
+    source: "marstek", type: online ? "marstek.device_online" : "marstek.device_offline", severity: online ? "info" : "warning",
+    title: `Marstek ${deviceId}: ${online ? "зв’язок відновлено" : "немає зв’язку понад 3 хвилини"}`,
+    payload: { deviceId }, occurredAt: observedAt,
+  });
+  await tx.eventState.update({ where: { key }, data: {
+    candidateValue: state.candidateValue, candidateSinceAt: state.candidateSinceAt, lastObservedAt: state.lastObservedAt,
+  } });
+  return event;
+}
+
 export async function observeMarstek(tx: EventTransaction, deviceId: string, soc: number | null, sampledAt: Date) {
-  const payload = { deviceId };
-  await observeEventInTransaction(tx, `device:${deviceId}`, "online", { source: "marstek", type: "marstek.device_online", severity: "info", title: `Marstek ${deviceId}: зв’язок відновлено`, payload, occurredAt: sampledAt });
+  await observeMarstekAvailability(tx, deviceId, true);
   if (soc === null) return;
   const key = `battery:${deviceId}`;
   await lockEventKey(tx, key);

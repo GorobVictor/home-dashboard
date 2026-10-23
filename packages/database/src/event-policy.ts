@@ -1,6 +1,35 @@
 export const severities = ["info", "warning", "error", "critical"] as const;
 export type Severity = typeof severities[number];
 
+export const marstekAvailabilityPolicy = {
+  offlineAfterMs: 180_000,
+  recoveryAfterMs: 30_000,
+  maxObservationGapMs: 30_000,
+} as const;
+
+interface AvailabilityState {
+  value: string;
+  candidateValue: string | null;
+  candidateSinceAt: Date | null;
+  lastObservedAt: Date | null;
+}
+
+export function marstekAvailabilityState(previous: AvailabilityState | null, available: boolean, now: Date): AvailabilityState {
+  const value = previous?.value === "offline" ? "offline" : "online";
+  const observed = available ? "online" : "offline";
+  const cleared = { candidateValue: null, candidateSinceAt: null, lastObservedAt: now };
+  if (value === observed) return { value, ...cleared };
+
+  const elapsed = previous?.lastObservedAt ? now.getTime() - previous.lastObservedAt.getTime() : -1;
+  const continuous = previous?.candidateValue === observed && previous.candidateSinceAt
+    && elapsed >= 0 && elapsed <= marstekAvailabilityPolicy.maxObservationGapMs
+    && previous.candidateSinceAt <= now;
+  const since = continuous ? previous.candidateSinceAt! : now;
+  const threshold = available ? marstekAvailabilityPolicy.recoveryAfterMs : marstekAvailabilityPolicy.offlineAfterMs;
+  if (now.getTime() - since.getTime() >= threshold) return { value: observed, ...cleared };
+  return { value, candidateValue: observed, candidateSinceAt: since, lastObservedAt: now };
+}
+
 export function acceptsSeverity(minimum: Severity, severity: Severity): boolean {
   return severities.indexOf(severity) >= severities.indexOf(minimum);
 }

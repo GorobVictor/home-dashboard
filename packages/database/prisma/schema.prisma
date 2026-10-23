@@ -63,6 +63,9 @@ model EventState {
   value String @db.VarChar(100)
   failures Int @default(0)
   lastEventAt DateTime? @db.Timestamptz(6)
+  candidateValue String? @db.VarChar(100)
+  candidateSinceAt DateTime? @db.Timestamptz(6)
+  lastObservedAt DateTime? @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
   @@map("event_states")

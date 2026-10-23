@@ -1,6 +1,6 @@
 import type { MarstekDeviceConfig, MarstekReading } from "@home-dashboard/integrations";
 import { getDatabase } from "./client";
-import { observeEventInTransaction, observeMarstek } from "./events";
+import { observeMarstekAvailability, observeMarstek } from "./events";
 
 const measurementSelect = {
   sampledAt: true,
@@ -71,13 +71,11 @@ export async function saveMarstekReading(deviceId: string, reading: MarstekReadi
 
 export async function markMarstekFailure(deviceId: string, reason: string): Promise<void> {
   await getDatabase().$transaction(async (tx) => {
-  const device = await tx.marstekDevice.update({
-    where: { id: deviceId },
-    data: { lastError: reason.slice(0, 100) },
-  });
-  if (Date.now() - (device.lastSeenAt ?? device.createdAt).getTime() > 180_000) {
-    await observeEventInTransaction(tx, `device:${deviceId}`, "offline", { source: "marstek", type: "marstek.device_offline", severity: "warning", title: `Marstek ${deviceId}: немає зв’язку понад 3 хвилини`, payload: { deviceId } }, { emitInitial: true });
-  }
+    await tx.marstekDevice.update({
+      where: { id: deviceId },
+      data: { lastError: reason.slice(0, 100) },
+    });
+    await observeMarstekAvailability(tx, deviceId, false);
   });
 }
 

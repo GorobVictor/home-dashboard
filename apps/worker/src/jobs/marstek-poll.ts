@@ -21,9 +21,9 @@ export async function pollMarstekDevices(
   operations: PollOperations = defaultOperations,
 ): Promise<void> {
   async function pollDevice(device: MarstekDeviceConfig) {
+    let reading: MarstekReading;
     try {
-      const reading = await operations.read(device);
-      await operations.save(device.id, reading);
+      reading = await operations.read(device);
     } catch (error) {
       const reason = error instanceof Error ? error.message : "unknown_error";
       const now = Date.now();
@@ -36,6 +36,20 @@ export async function pollMarstekDevices(
         await operations.fail(device.id, reason);
       } catch (databaseError) {
         console.error("marstek_failure_save_failed", { deviceId: device.id, error: databaseError instanceof Error ? databaseError.name : "unknown_error" });
+      }
+      return;
+    }
+    try {
+      await operations.save(device.id, reading);
+    } catch (error) {
+      // Persistence failures say nothing about the device's UDP availability.
+      const reason = error instanceof Error ? error.name : "unknown_error";
+      const key = `save:${device.id}`;
+      const now = Date.now();
+      const lastLogged = loggedFailures.get(key);
+      if (!lastLogged || lastLogged.reason !== reason || now - lastLogged.at >= 60_000) {
+        console.error("marstek_measurement_save_failed", { deviceId: device.id, error: reason });
+        loggedFailures.set(key, { reason, at: now });
       }
     }
   }
