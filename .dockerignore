@@ -6,5 +6,8 @@ node_modules
 **/dist
 packages/database/generated
 .env*
+backups
+test-results
+postman/*.ndjson
 *.tsbuildinfo
 .DS_Store

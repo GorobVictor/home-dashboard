@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/backups/
+/test-results/
+/postman/*.ndjson
 
 # next.js
 **/.next/
