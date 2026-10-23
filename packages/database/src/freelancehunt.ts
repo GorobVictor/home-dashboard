@@ -3,6 +3,7 @@ import { uniqueNewProjects } from "@home-dashboard/integrations/freelancehunt-ru
 import { getDatabase } from "./client";
 import { publishEventInTransaction, lockEventKey } from "./events";
 import { projectNotificationRecipients } from "./freelancehunt-workspace";
+import { createHash } from "node:crypto";
 
 const settingsId = "default";
 export const defaultFreelancehuntSkillIds = [103, 120, 121, 169, 175, 180, 183, 190, 24, 86];
@@ -55,10 +56,11 @@ function threadEvent(thread: FreelancehuntThread) {
   return JSON.stringify({ type: "freelancehunt.message.discovered", thread: { id: thread.id, subject: thread.subject, url: thread.url } });
 }
 
-export async function saveFreelancehuntProjects(projects: FreelancehuntProject[]): Promise<{ initial: boolean; projects: FreelancehuntProject[] }> {
+export async function saveFreelancehuntProjects(projects: FreelancehuntProject[], baseline = false, checkpoint?: { page: number; baseline: boolean }): Promise<{ initial: boolean; projects: FreelancehuntProject[] }> {
   const db = getDatabase();
   return db.$transaction(async (transaction) => {
     await lockEventKey(transaction, "fh:project-sync");
+    if (checkpoint) await saveScanInTransaction(transaction, "projects", checkpoint.page, checkpoint.baseline);
     const settings = await transaction.freelancehuntSettings.upsert({
       where: { id: settingsId },
       create: { id: settingsId, skillIds: defaultFreelancehuntSkillIds },
@@ -82,7 +84,7 @@ export async function saveFreelancehuntProjects(projects: FreelancehuntProject[]
       });
       rows.push({ project, row, recipients: await projectNotificationRecipients(transaction, row) });
     }
-    if (!settings.projectsInitialized) {
+    if (!settings.projectsInitialized || baseline) {
       await transaction.freelancehuntSettings.update({ where: { id: settingsId }, data: { projectsInitialized: true } });
       return { initial: true, projects: [] };
     }
@@ -98,27 +100,53 @@ export async function saveFreelancehuntProjects(projects: FreelancehuntProject[]
 export async function syncFreelancehuntCatalogue(skills: FreelancehuntSkill[]) {
   if (!skills.length) return;
   const byName = new Map(skills.map((skill) => [skill.name.toLocaleLowerCase("uk"), skill]));
-  return getDatabase().$transaction(async (tx) => {
-    await lockEventKey(tx, "fh:project-sync");
-    let cursor: bigint | undefined;
-    while (true) {
-      const rows = await tx.freelancehuntProject.findMany({ orderBy: { id: "asc" }, take: 250, ...(cursor === undefined ? {} : { cursor: { id: cursor }, skip: 1 }) });
-      if (!rows.length) break;
+  const db = getDatabase();
+  const catalogueVersion = createHash("sha256").update(JSON.stringify(skills)).digest("hex");
+  const ready = await db.eventState.findUnique({ where: { key: "fh:catalogue-ready" } });
+  const changed = ready?.value !== catalogueVersion;
+  let cursor: bigint | undefined;
+  while (true) {
+    const last = await db.$transaction(async (tx) => {
+      await lockEventKey(tx, "fh:catalogue-sync");
+      let lastId: bigint | undefined;
+      const rows = await tx.freelancehuntProject.findMany({ where: changed ? {} : { AND: [{ skills: { not: [] } }, { OR: [{ skillIds: { equals: [] } }, { categories: { equals: [] } }] }] }, orderBy: { id: "asc" }, take: 250, ...(cursor === undefined ? {} : { cursor: { id: cursor }, skip: 1 }) });
+      if (!rows.length) return undefined;
       for (const row of rows) {
         const matched = (row.skills as string[]).flatMap((name) => { const skill = byName.get(name.toLocaleLowerCase("uk")); return skill ? [skill] : []; });
         const skillIds = [...new Set(matched.map((s) => s.id))], categories = [...new Set(matched.map((s) => s.groupName))];
         if (JSON.stringify(row.skillIds) === JSON.stringify(skillIds) && JSON.stringify(row.categories) === JSON.stringify(categories)) continue;
         await tx.freelancehuntProject.update({ where: { id: row.id }, data: { skillIds, categories } });
       }
-      cursor = rows.at(-1)!.id;
-    }
-    await tx.eventState.upsert({ where: { key: "fh:catalogue-ready" }, create: { key: "fh:catalogue-ready", value: "ready" }, update: { value: "ready" } });
-  }, { timeout: 60_000 });
+      lastId = rows.at(-1)!.id;
+      return lastId;
+    }, { timeout: 15000 });
+    if (last === undefined) break;
+    cursor = last;
+  }
+  await db.eventState.upsert({ where: { key: "fh:catalogue-ready" }, create: { key: "fh:catalogue-ready", value: catalogueVersion }, update: { value: catalogueVersion } });
 }
 
-export async function saveFreelancehuntThreads(threads: FreelancehuntThread[]): Promise<{ initial: boolean; threads: FreelancehuntThread[] }> {
+export async function freelancehuntScan(kind: "projects" | "threads", initialized: boolean) {
+  const row = await getDatabase().eventState.findUnique({ where: { key: `fh:scan:${kind}` } });
+  const [page, baseline] = (row?.value ?? "1:0").split(":");
+  return { page: Math.min(10000, Math.max(1, Number(page) || 1)), baseline: !initialized || baseline === "1" };
+}
+export async function saveFreelancehuntScan(kind: "projects" | "threads", page: number, baseline: boolean) {
+  return getDatabase().$transaction(tx => saveScanInTransaction(tx, kind, page, baseline));
+}
+async function saveScanInTransaction(tx: import("./events").EventTransaction, kind: "projects" | "threads", page: number, baseline: boolean) {
+  const key = `fh:scan:${kind}`, value = `${page}:${baseline ? 1 : 0}`;
+  await tx.eventState.upsert({ where: { key }, create: { key, value }, update: { value } });
+}
+export async function knownFreelancehuntProjects(ids: number[]) {
+  return getDatabase().freelancehuntProject.count({ where: { externalId: { in: ids } } });
+}
+
+export async function saveFreelancehuntThreads(threads: FreelancehuntThread[], baseline = false, checkpoint?: { page: number; baseline: boolean }): Promise<{ initial: boolean; threads: FreelancehuntThread[] }> {
   const db = getDatabase();
   return db.$transaction(async (transaction) => {
+    await lockEventKey(transaction, "fh:thread-sync");
+    if (checkpoint) await saveScanInTransaction(transaction, "threads", checkpoint.page, checkpoint.baseline);
     const settings = await transaction.freelancehuntSettings.upsert({
       where: { id: settingsId },
       create: { id: settingsId, skillIds: defaultFreelancehuntSkillIds },
@@ -150,7 +178,7 @@ export async function saveFreelancehuntThreads(threads: FreelancehuntThread[]): 
         },
       });
     }
-    if (!settings.messagesInitialized) {
+    if (!settings.messagesInitialized || baseline) {
       await transaction.freelancehuntSettings.update({ where: { id: settingsId }, data: { messagesInitialized: true } });
       return { initial: true, threads: [] };
     }

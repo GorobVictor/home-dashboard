@@ -1,7 +1,8 @@
 import type { Prisma } from "../generated/client/client";
 import { createHash, randomUUID } from "node:crypto";
 import { getDatabase } from "./client";
-import { acceptsSeverity, shouldPublish, batteryState, marstekAvailabilityState, type Severity } from "./event-policy";
+import { shouldPublish, batteryState, marstekAvailabilityState, type Severity } from "./event-policy";
+import { channelMatches } from "./channel-policy";
 
 export interface EventInput {
   source: string;
@@ -51,7 +52,7 @@ export async function publishEventInTransaction(tx: EventTransaction, input: Eve
   const channels = telegram ? await tx.notificationChannel.findMany({ where: { enabled: true, ...(channelId ? { id: channelId } : channelIds ? { id: { in: channelIds } } : {}) } }) : [];
   await tx.notification.createMany({ data: [
     ...users.map((user) => ({ eventId: event.id, recipientKey: `user:${user.id}`, userId: user.id, status: "sent" as const })),
-    ...channels.filter((channel) => (channelId || acceptsSeverity(channel.minSeverity, event.severity)) && (channelId || !Array.isArray(channel.sources) || channel.sources.length === 0 || channel.sources.includes(input.source))).map((channel) => ({ eventId: event.id, recipientKey: `channel:${channel.id}`, channelId: channel.id, status: "pending" as const })),
+    ...channels.filter(channel => channelId || channelMatches(channel, event)).map((channel) => ({ eventId: event.id, recipientKey: `channel:${channel.id}`, channelId: channel.id, status: "pending" as const })),
   ], skipDuplicates: true });
   await notifyChanged(tx);
   return event;
@@ -139,4 +140,8 @@ export async function listEvents(filters: EventFilters = {}) {
   const db = getDatabase();
   const [items, total] = await Promise.all([db.event.findMany({ where, orderBy: [{ occurredAt: "desc" }, { id: "desc" }], skip: (page - 1) * 30, take: 30 }), db.event.count({ where })]);
   return { items, total, page, pageSize: 30 };
+}
+
+export async function exportEvents(filters: EventFilters = {}) {
+  return getDatabase().event.findMany({ where: { source: filters.source, type: filters.type, severity: filters.severity, occurredAt: { gte: filters.from, lte: filters.to } }, orderBy: [{ occurredAt: "desc" }, { id: "desc" }], take: 10000, select: { occurredAt: true, source: true, type: true, severity: true, title: true } });
 }

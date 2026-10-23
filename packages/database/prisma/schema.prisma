@@ -79,6 +79,11 @@ model NotificationChannel {
   enabled Boolean @default(true)
   minSeverity EventSeverity @default(info)
   sources Json @default("[]") @db.JsonB
+  eventTypes Json @default("[]") @db.JsonB
+  deviceIds Json @default("[]") @db.JsonB
+  quietFrom String @default("") @db.VarChar(5)
+  quietTo String @default("") @db.VarChar(5)
+  digest Boolean @default(false)
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
   notifications Notification[]
@@ -150,15 +155,16 @@ model MarstekMeasurement {
   socPercent            Float?        @map("soc_percent")
   batteryPowerW         Float?        @map("battery_power_w")
   powerSource           String        @map("power_source") @db.VarChar(16)
-  chargePowerW          Float         @default(0) @map("charge_power_w")
-  dischargePowerW       Float         @default(0) @map("discharge_power_w")
-  chargeEnergyWh        Float         @default(0) @map("charge_energy_wh")
-  dischargeEnergyWh     Float         @default(0) @map("discharge_energy_wh")
+  chargePowerW          Float?        @map("charge_power_w")
+  dischargePowerW       Float?        @map("discharge_power_w")
+  chargeEnergyWh        Float?        @map("charge_energy_wh")
+  dischargeEnergyWh     Float?        @map("discharge_energy_wh")
   flow                  String        @db.VarChar(16)
   gridPowerW            Float?        @map("grid_power_w")
   offgridPowerW         Float?        @map("offgrid_power_w")
   pvPowerW              Float?        @map("pv_power_w")
   batteryTemperatureC   Float?        @map("battery_temperature_c")
+  batteryDetailsAt      DateTime?     @map("battery_details_at") @db.Timestamptz(6)
   remainingCapacityWh   Float?        @map("remaining_capacity_wh")
   ratedCapacityWh       Float?        @map("rated_capacity_wh")
   gridInputTotalWh      Float?        @map("grid_input_total_wh")
@@ -241,6 +247,7 @@ model FreelancehuntProjectState {
   hiddenAt DateTime? @db.Timestamptz(6)
   viewedAt DateTime? @db.Timestamptz(6)
   notes String @default("") @db.Text
+  workflow String @default("none") @db.VarChar(16)
   @@id([userId, projectId])
   @@index([userId, savedAt])
   @@index([userId, hiddenAt])
@@ -261,4 +268,47 @@ model FreelancehuntThread {
 
   @@index([isUnread, lastPostedAt(sort: Desc)])
   @@map("freelancehunt_threads")
+}
+
+// One minute of telemetry, maintained by the single worker in the reading transaction.
+model MarstekMinute {
+  deviceId String @db.VarChar(64)
+  bucketAt DateTime @db.Timestamptz(6)
+  samples Int
+  firstAt DateTime @db.Timestamptz(6)
+  lastAt DateTime @db.Timestamptz(6)
+  socSum Float
+  socCount Int
+  chargeSum Float
+  chargeCount Int
+  dischargeSum Float
+  dischargeCount Int
+  gridSum Float
+  gridCount Int
+  pvSum Float
+  pvCount Int
+  temperatureSum Float
+  temperatureCount Int
+  temperatureMin Float?
+  temperatureMax Float?
+  chargePeak Float?
+  dischargePeak Float?
+  chargeEnergyWh Float
+  dischargeEnergyWh Float
+  energyCount Int
+  coverageSeconds Float
+  @@id([deviceId, bucketAt])
+  @@index([bucketAt], map: "marstek_minutes_bucket_idx")
+  @@map("marstek_minutes")
+}
+
+model Site {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name String @db.VarChar(100)
+  url String @db.VarChar(2048)
+  description String @default("") @db.VarChar(300)
+  group String @default("Сервіси") @db.VarChar(100)
+  position Int @default(0)
+  @@index([group, position])
+  @@map("sites")
 }

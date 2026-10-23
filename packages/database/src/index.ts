@@ -1,5 +1,9 @@
 export { disconnectDatabase } from "./client";
-export { publishEvent, observeEvent, observeMarstekGrid, observeServiceHealth, listEvents } from "./events";
+export * from "./sites";
+export { recordHealth, getSystemStatus } from "./health";
+export { publishDailyDigests } from "./digests";
+export { backfillMarstekMinutes } from "./marstek-aggregates";
+export { publishEvent, observeEvent, observeMarstekGrid, observeServiceHealth, listEvents, exportEvents } from "./events";
 export type { EventInput, EventFilters } from "./events";
 export { severities, acceptsSeverity, shouldPublish, retryDelayMs, batteryState } from "./event-policy";
 export type { Severity } from "./event-policy";
@@ -18,6 +22,9 @@ export {
 export {
   defaultFreelancehuntSkillIds,
   getFreelancehuntSettings,
+  freelancehuntScan,
+  saveFreelancehuntScan,
+  knownFreelancehuntProjects,
   listFreelancehuntProjects,
   listRecentFreelancehuntProjects,
   saveFreelancehuntProjects,

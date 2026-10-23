@@ -1,6 +1,8 @@
 import type { MarstekDeviceConfig, MarstekReading } from "@home-dashboard/integrations";
 import { getDatabase } from "./client";
 import { observeMarstekAvailability, observeMarstek } from "./events";
+import { saveMarstekMinute, measurementBuckets } from "./marstek-aggregates";
+export type { MarstekMeasurementBucket } from "./marstek-aggregates";
 
 const measurementSelect = {
   sampledAt: true,
@@ -16,6 +18,7 @@ const measurementSelect = {
   offgridPowerW: true,
   pvPowerW: true,
   batteryTemperatureC: true,
+  batteryDetailsAt: true,
   remainingCapacityWh: true,
   ratedCapacityWh: true,
   gridInputTotalWh: true,
@@ -53,13 +56,14 @@ export async function saveMarstekReading(deviceId: string, reading: MarstekReadi
   });
   const elapsedMs = previous ? reading.sampledAt.getTime() - previous.sampledAt.getTime() : 0;
   // Do not invent energy across outages or delayed polls.
-  const elapsedHours = elapsedMs > 0 && elapsedMs <= 5 * 60_000 ? elapsedMs / 3_600_000 : 0;
-  const chargeEnergyWh = previous ? (previous.chargePowerW + reading.chargePowerW) / 2 * elapsedHours : 0;
-  const dischargeEnergyWh = previous ? (previous.dischargePowerW + reading.dischargePowerW) / 2 * elapsedHours : 0;
+  const elapsedHours = elapsedMs > 0 && elapsedMs <= 5 * 60_000 ? elapsedMs / 3_600_000 : null;
+  const chargeEnergyWh = elapsedHours !== null && previous?.chargePowerW != null && reading.chargePowerW !== null ? (previous.chargePowerW + reading.chargePowerW) / 2 * elapsedHours : null;
+  const dischargeEnergyWh = elapsedHours !== null && previous?.dischargePowerW != null && reading.dischargePowerW !== null ? (previous.dischargePowerW + reading.dischargePowerW) / 2 * elapsedHours : null;
   await db.$transaction(async (tx) => {
     await tx.marstekMeasurement.create({
       data: { deviceId, ...reading, chargeEnergyWh, dischargeEnergyWh },
     });
+    await saveMarstekMinute(tx, deviceId, reading, chargeEnergyWh, dischargeEnergyWh, reading.batteryPowerW === null ? 0 : 1);
     await tx.marstekDevice.update({
       where: { id: deviceId },
       data: { lastSeenAt: reading.sampledAt, lastError: null },
@@ -86,38 +90,19 @@ export async function listMarstekDevices() {
   });
 }
 
-export interface MarstekMeasurementBucket {
-  sampledAt: Date;
-  socPercent: number | null;
-  chargePowerW: number;
-  dischargePowerW: number;
-  gridPowerW: number | null;
-  pvPowerW: number | null;
-  chargeEnergyWh: number;
-  dischargeEnergyWh: number;
-}
-
 export async function listMarstekMeasurementBuckets(deviceId: string, since: Date, bucketSeconds: 60 | 600, until = new Date()) {
-  return getDatabase().$queryRaw<MarstekMeasurementBucket[]>`
-    SELECT
-      greatest(to_timestamp(floor(extract(epoch FROM sampled_at) / ${bucketSeconds}) * ${bucketSeconds}), ${since}) AS "sampledAt",
-      avg(soc_percent)::double precision AS "socPercent",
-      avg(charge_power_w)::double precision AS "chargePowerW",
-      avg(discharge_power_w)::double precision AS "dischargePowerW",
-      avg(grid_power_w)::double precision AS "gridPowerW",
-      avg(pv_power_w)::double precision AS "pvPowerW",
-      sum(charge_energy_wh)::double precision AS "chargeEnergyWh",
-      sum(discharge_energy_wh)::double precision AS "dischargeEnergyWh"
-    FROM marstek_measurements
-    WHERE device_id = ${deviceId} AND sampled_at >= ${since} AND sampled_at <= ${until}
-    GROUP BY 1
-    ORDER BY 1 ASC
-  `;
+  void bucketSeconds;
+  return measurementBuckets(deviceId, since, until);
 }
 
 export async function pruneMarstekMeasurements(before: Date): Promise<number> {
-  const result = await getDatabase().marstekMeasurement.deleteMany({
-    where: { sampledAt: { lt: before } },
-  });
-  return result.count;
+  const db = getDatabase();
+  let removed = 0;
+  for (let batch = 0; batch < 20; batch++) {
+    const count = await db.$executeRaw`DELETE FROM marstek_measurements WHERE id IN (SELECT id FROM marstek_measurements WHERE sampled_at < ${before} ORDER BY sampled_at LIMIT 10000)`;
+    removed += count;
+    if (count < 10000) break;
+  }
+  await db.marstekMinute.deleteMany({ where: { bucketAt: { lt: before } } });
+  return removed;
 }

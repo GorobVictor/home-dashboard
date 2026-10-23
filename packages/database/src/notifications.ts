@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { getDatabase } from "./client";
 import { notifyChanged, lockEventKey, publishEventInTransaction } from "./events";
-import { acceptsSeverity, retryDelayMs, type Severity } from "./event-policy";
+import { retryDelayMs, type Severity } from "./event-policy";
+import { channelMatches, nextDeliveryAt } from "./channel-policy";
 
-export interface ChannelInput { name: string; chatId: string; enabled: boolean; minSeverity: Severity; sources: string[] }
+export interface ChannelInput { name: string; chatId: string; enabled: boolean; minSeverity: Severity; sources: string[]; eventTypes?: string[]; deviceIds?: string[]; quietFrom?: string; quietTo?: string; digest?: boolean }
 export const listNotificationChannels = () => getDatabase().notificationChannel.findMany({ orderBy: { createdAt: "asc" } });
 
 export async function saveNotificationChannel(input: ChannelInput, id?: string) {
@@ -83,9 +84,17 @@ export async function claimNotification(now = new Date()) {
     });
     if (!row) return null;
     const channel = row.channel;
-    const sources = channel?.sources;
     const test = row.event.type === "system.test_notification";
-    const eligible = channel?.enabled && (test || (acceptsSeverity(channel.minSeverity, row.event.severity) && (!Array.isArray(sources) || sources.length === 0 || sources.includes(row.event.source))));
+    const digest = row.event.type === "system.daily_digest" && channel?.digest;
+    const eligible = channel?.enabled && (test || digest || channelMatches(channel, row.event));
+    if (eligible && channel && !test) {
+      const next = nextDeliveryAt(channel, now, row.event.severity);
+      if (next > now) {
+        if (row.status === "processing") await tx.notificationDelivery.updateMany({ where: { notificationId: row.id, status: "processing" }, data: { status: "unknown", finishedAt: now, errorCode: "worker_lease_expired" } });
+        await tx.notification.update({ where: { id: row.id }, data: { status: "pending", nextAttemptAt: next, leaseUntil: null } });
+        return { skipped: true as const };
+      }
+    }
     const skip = !eligible || row.attemptCount >= 6;
     const claimed = await tx.notification.updateMany({ where: { id: row.id, status: row.status, attemptCount: row.attemptCount }, data: skip ? { status: row.attemptCount >= 6 ? "failed" : "cancelled", leaseUntil: null } : { status: "processing", leaseUntil: new Date(now.getTime() + 120_000), attemptCount: { increment: 1 } } });
     if (!claimed.count) return null;

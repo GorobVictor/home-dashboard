@@ -67,6 +67,7 @@ export async function listPersonalFreelancehuntProjects(userId: string, filters:
     ...(filters.state === "new" ? [{ states: { none: state({ viewedAt: { not: null } }) } }] : []),
     ...(filters.state === "viewed" ? [{ states: { some: state({ viewedAt: { not: null } }) } }] : []),
     ...(filters.state === "saved" ? [{ states: { some: state({ savedAt: { not: null } }) } }] : []),
+    ...(filters.workflow === "all" ? [] : filters.workflow === "none" ? [{ states: { none: state({ workflow: { not: "none" } }) } }] : [{ states: { some: state({ workflow: filters.workflow }) } }]),
   ] };
   const orderBy: Prisma.FreelancehuntProjectOrderByWithRelationInput[] = filters.sort === "budget" ? [{ budgetCurrency: { sort: "asc", nulls: "last" } }, { budgetAmount: { sort: "desc", nulls: "last" } }] : [];
   orderBy.push({ publishedAt: { sort: "desc", nulls: "last" } }, { id: "desc" });
@@ -74,8 +75,15 @@ export async function listPersonalFreelancehuntProjects(userId: string, filters:
   const [rows, total] = await Promise.all([db.freelancehuntProject.findMany({ where, include: { states: { where: { userId } } }, orderBy, skip: (safePage - 1) * pageSize, take: pageSize }), db.freelancehuntProject.count({ where })]);
   return { projects: rows.map((row) => {
     const personal = row.states[0];
-    return { ...mapFreelancehuntProject(row), saved: !!personal?.savedAt, hidden: !!personal?.hiddenAt, viewed: !!personal?.viewedAt, notes: personal?.notes ?? "" };
+    return { ...mapFreelancehuntProject(row), saved: !!personal?.savedAt, hidden: !!personal?.hiddenAt, viewed: !!personal?.viewedAt, notes: personal?.notes ?? "", workflow: personal?.workflow ?? "none" };
   }), total, page: safePage, pageSize };
+}
+
+export async function getPersonalFreelancehuntProject(userId: string, externalId: number) {
+  const row = await getDatabase().freelancehuntProject.findUnique({ where: { externalId }, include: { states: { where: { userId } } } });
+  if (!row) return null;
+  const state = row.states[0];
+  return { ...mapFreelancehuntProject(row), saved: !!state?.savedAt, hidden: !!state?.hiddenAt, viewed: !!state?.viewedAt, notes: state?.notes ?? "", workflow: state?.workflow ?? "none" };
 }
 
 export async function getStoredFreelancehuntProject(externalId: number) {
