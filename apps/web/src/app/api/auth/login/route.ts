@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, jsonBody, sameOrigin } from "@/server/auth/http";
 import { authService } from "@/server/auth/service";
+import { reserveLogin } from "@/server/auth/rate-limit";
 import {
   createSessionToken,
   sessionCookieName,
@@ -13,7 +14,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const user = await authService.login(await jsonBody(request));
+    const input = await jsonBody(request);
+    const login = input && typeof input === "object" && "login" in input && typeof input.login === "string" ? input.login.slice(0, 50) : "invalid";
+    const reservation = reserveLogin(login, request.headers.get("x-internal-client-ip") ?? "local");
+    if (reservation.retryAfter) return NextResponse.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": String(reservation.retryAfter) } });
+    let user;
+    try { user = await authService.login(input); reservation.finish(true); } catch (error) { reservation.finish(false); throw error; }
     const token = await createSessionToken(user.id);
     const response = NextResponse.json({ user });
     response.cookies.set(

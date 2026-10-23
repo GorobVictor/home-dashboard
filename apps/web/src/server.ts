@@ -4,7 +4,7 @@ import next from "next";
 import { Client } from "pg";
 import { WebSocket, WebSocketServer } from "ws";
 import { authService } from "./server/auth/service";
-import { readSessionToken, sessionCookieName } from "./server/auth/tokens";
+import { readSession, sessionCookieName } from "./server/auth/tokens";
 
 const eventPath = "/api/events";
 const port = Number(process.env.PORT ?? 3000);
@@ -21,7 +21,10 @@ function sameOrigin(request: IncomingMessage): boolean {
   const host = request.headers.host;
   if (!origin || !host) return false;
   try {
-    return new URL(origin).host === host;
+    const forwarded = request.headers["x-forwarded-proto"];
+    const protocol = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : "http";
+    const parsed = new URL(origin);
+    return parsed.host === host && parsed.protocol === `${protocol}:`;
   } catch {
     return false;
   }
@@ -32,34 +35,45 @@ function rejectUpgrade(socket: import("node:stream").Duplex, status: number): vo
   socket.destroy();
 }
 
-async function canConnect(request: IncomingMessage): Promise<boolean> {
-  if (!sameOrigin(request)) return false;
+async function canConnect(request: IncomingMessage) {
+  if (!sameOrigin(request)) return null;
   const token = cookieValue(request, sessionCookieName);
-  if (!token) return false;
-  const userId = await readSessionToken(token);
-  return Boolean(userId && await authService.findUser(userId));
+  if (!token) return null;
+  const session = await readSession(token);
+  return session && await authService.findUser(session.userId) ? session : null;
 }
 
 async function main(): Promise<void> {
   const app = next({ dev: process.env.NODE_ENV !== "production", hostname, port });
   const handle = app.getRequestHandler();
   await app.prepare();
+  const handleUpgrade = app.getUpgradeHandler();
 
   const sockets = new Set<WebSocket>();
-  const webSocketServer = new WebSocketServer({ noServer: true, clientTracking: false });
-  const server = createServer((request, response) => handle(request, response, parse(request.url ?? "/", true)));
+  const sessions = new Map<WebSocket, { userId: string; expiresAt: number; alive: boolean; timer: NodeJS.Timeout }>();
+  const webSocketServer = new WebSocketServer({ noServer: true, clientTracking: false, maxPayload: 4096 });
+  const server = createServer((request, response) => {
+    request.headers["x-internal-client-ip"] = request.socket.remoteAddress ?? "local";
+    return handle(request, response, parse(request.url ?? "/", true));
+  });
   server.on("upgrade", async (request, socket, head) => {
-    const pathname = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`).pathname;
-    if (pathname !== eventPath) {
-      socket.destroy();
-      return;
-    }
     try {
-      if (!await canConnect(request)) return rejectUpgrade(socket, 401);
+      const pathname = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`).pathname;
+      if (pathname !== eventPath) {
+        if (process.env.NODE_ENV !== "production") await handleUpgrade(request, socket, head);
+        else socket.destroy();
+        return;
+      }
+      const session = await canConnect(request);
+      if (!session) return rejectUpgrade(socket, 401);
       webSocketServer.handleUpgrade(request, socket, head, (websocket) => {
         sockets.add(websocket);
-        websocket.on("close", () => sockets.delete(websocket));
-        websocket.on("error", () => sockets.delete(websocket));
+        const timer = setTimeout(() => websocket.close(4401, "session_expired"), Math.max(0, session.expiresAt - Date.now()));
+        sessions.set(websocket, { ...session, alive: true, timer });
+        const cleanup = () => { clearTimeout(timer); sessions.delete(websocket); sockets.delete(websocket); };
+        websocket.on("close", cleanup);
+        websocket.on("error", cleanup);
+        websocket.on("pong", () => { const state = sessions.get(websocket); if (state) state.alive = true; });
         websocket.send(JSON.stringify({ type: "connection.ready", occurredAt: new Date().toISOString() }));
       });
     } catch (error) {
@@ -96,10 +110,14 @@ async function main(): Promise<void> {
       await client.end().catch(() => undefined);
       throw error;
     }
+    const previous = listener;
     listener = client;
+    if (previous && previous !== client) void previous.end().catch(() => undefined);
+    for (const socket of sockets) if (socket.readyState === WebSocket.OPEN) socket.send('{"type":"connection.resynced"}');
     client.on("notification", (notification) => {
       if (listener !== client || !notification.payload) return;
       for (const socket of sockets) {
+        if (socket.bufferedAmount > 1024 * 1024) { socket.terminate(); continue; }
         if (socket.readyState === WebSocket.OPEN) socket.send(notification.payload);
       }
     });
@@ -114,7 +132,14 @@ async function main(): Promise<void> {
 
   const heartbeat = setInterval(() => {
     for (const socket of sockets) {
-      if (socket.readyState === WebSocket.OPEN) socket.ping();
+      const state = sessions.get(socket);
+      if (!state?.alive) { socket.terminate(); continue; }
+      state.alive = false;
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.ping();
+        socket.send('{"type":"connection.heartbeat"}');
+        void authService.findUser(state.userId).then(user => { if (!user) socket.close(4401, "user_removed"); }).catch(() => socket.close(1011, "auth_unavailable"));
+      }
     }
   }, 30_000);
   server.listen(port, hostname, () => console.info("websocket_server_started", { path: eventPath, port }));

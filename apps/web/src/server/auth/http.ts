@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthError } from "./service";
+import { readJson } from "../body";
 
 export function sameOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
@@ -15,18 +16,8 @@ export function sameOrigin(request: NextRequest): boolean {
 }
 
 export async function jsonBody(request: NextRequest): Promise<unknown> {
-  if (
-    !request.headers.get("content-type")?.startsWith("application/json") ||
-    Number(request.headers.get("content-length") || 0) > 4096
-  ) {
-    throw new AuthError("invalid_input");
-  }
   try {
-    const body = await request.text();
-    if (Buffer.byteLength(body, "utf8") > 4096) {
-      throw new AuthError("invalid_input");
-    }
-    return JSON.parse(body) as unknown;
+    return await readJson(request);
   } catch {
     throw new AuthError("invalid_input");
   }

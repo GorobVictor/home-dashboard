@@ -26,13 +26,17 @@ export async function createSessionToken(userId: string): Promise<string> {
 }
 
 export async function readSessionToken(token: string): Promise<string | null> {
+  return (await readSession(token))?.userId ?? null;
+}
+
+export async function readSession(token: string): Promise<{ userId: string; expiresAt: number } | null> {
   try {
     const { payload } = await jwtVerify(token, signingKey(), {
       algorithms: ["HS256"],
       issuer,
       audience,
     });
-    return payload.sub && uuidPattern.test(payload.sub) ? payload.sub : null;
+    return payload.sub && uuidPattern.test(payload.sub) && typeof payload.exp === "number" ? { userId: payload.sub, expiresAt: payload.exp * 1000 } : null;
   } catch (error) {
     if (error instanceof errors.JOSEError) {
       return null;
