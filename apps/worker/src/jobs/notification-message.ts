@@ -19,8 +19,6 @@ const headings: Record<string, string> = {
   "marstek.fully_charged": "🔋 Батарею повністю заряджено",
   "marstek.device_offline": "📡 Пристрій недоступний",
   "marstek.device_online": "✅ Зв’язок із пристроєм відновлено",
-  "marstek.grid_lost": "⚡ Електромережа недоступна",
-  "marstek.grid_restored": "⚡ Електропостачання відновлено",
   "system.service_unavailable": "🔴 Сервіс недоступний",
   "system.service_restored": "✅ Доступ до сервісу відновлено",
   "system.test_notification": "✅ Тестове сповіщення",

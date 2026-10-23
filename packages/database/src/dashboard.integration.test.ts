@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFile } from "node:fs/promises";
+import { Client } from "pg";
 import { getDatabase, disconnectDatabase } from "./client";
 import { saveMarstekReading, syncMarstekDevices, listMarstekMeasurementBuckets } from "./marstek";
 import { backfillMarstekMinutes } from "./marstek-aggregates";
 import { toMarstekReading } from "@home-dashboard/integrations";
-import { saveNotificationChannel, claimNotification } from "./notifications";
+import { saveNotificationChannel, claimNotification, finishNotification } from "./notifications";
 import { publishEvent } from "./events";
 import { publishDailyDigests } from "./digests";
 import { listSites, saveSite, removeSite } from "./sites";
@@ -31,7 +33,7 @@ test("PostgreSQL minute aggregates, unknown power, channel policy, digest and sh
       const again = await listMarstekMeasurementBuckets(device.id, new Date("2026-10-22T12:00:00Z"), 600, new Date("2026-10-22T12:01:00Z"));
       assert.equal(again[0].samples, 2);
     });
-    await t.test("quiet hours defer without consuming attempts; critical delivery bypasses batching", async () => {
+    await t.test("quiet hours defer without consuming attempts; critical delivery bypasses quiet hours", async () => {
       await saveNotificationChannel({ name: "Night", chatId: "-111", enabled: true, minSeverity: "info", sources: ["system"], quietFrom: "22:00", quietTo: "08:00" });
       await publishEvent({ source: "system", type: "system.test_warning", severity: "warning", title: "Warning", userIds: [] });
       const now = new Date("2030-01-01T22:00:00Z"), work = await claimNotification(now);
@@ -51,6 +53,61 @@ test("PostgreSQL minute aggregates, unknown power, channel policy, digest and sh
       const site = await saveSite({ name: "Test", url: "https://example.com/", description: "Test", group: "Tests", position: 1 });
       assert.equal((await listSites()).length, 8);
       await removeSite(site.id); assert.equal((await listSites()).length, 7);
+    });
+    await t.test("a digest channel gets individual projects immediately and an additional summary after 09:00 Kyiv", async () => {
+      const channel = await saveNotificationChannel({ name: "Projects and digest", chatId: "-333", enabled: true, minSeverity: "info", sources: ["freelancehunt"], digest: true });
+      const event = await publishEvent({ source: "freelancehunt", type: "freelancehunt.project_created", severity: "info", title: "New project", payload: { externalId: 123 }, userIds: [], occurredAt: new Date("2026-10-22T12:00:00Z") });
+      const individual = await db.notification.findFirstOrThrow({ where: { eventId: event.id, channelId: channel.id } });
+      assert.equal(individual.status, "pending");
+      // Work due now is eligible even while the channel's digest is enabled.
+      let delivered = false;
+      for (let index = 0; index < 10; index++) {
+        const work = await claimNotification(new Date("2030-01-02T09:00:00Z"));
+        if (!work) break;
+        if (work.skipped) continue;
+        await finishNotification(work.delivery.id, { messageId: `synthetic-${index}` });
+        if (work.notification.id === individual.id) { delivered = true; break; }
+      }
+      assert.ok(delivered);
+      await publishDailyDigests(new Date("2026-10-23T05:59:00Z"));
+      const where = { type: "system.daily_digest", deduplicationKey: `digest:${channel.id}:2026-10-22` };
+      assert.equal(await db.event.count({ where }), 0);
+      await publishDailyDigests(new Date("2026-10-23T06:00:00Z"));
+      await publishDailyDigests(new Date("2026-10-23T07:00:00Z"));
+      const summary = await db.event.findFirstOrThrow({ where });
+      assert.match(String((summary.payload as { summary: string }).summary), /Нових проєктів: 1/);
+      assert.equal(await db.event.count({ where }), 1);
+      assert.equal(await db.notification.count({ where: { channelId: channel.id } }), 2);
+    });
+    await t.test("retiring unavailable events cleans saved filters without widening recipients or deleting history", async () => {
+      const only = await db.notificationChannel.create({ data: { name: "Retired only", chatId: "-444", eventTypes: ["marstek.grid_lost", "marstek.grid_restored"] } });
+      const mixed = await db.notificationChannel.create({ data: { name: "Mixed", chatId: "-445", eventTypes: ["marstek.grid_lost", "freelancehunt.project_created"] } });
+      const all = await db.notificationChannel.create({ data: { name: "All", chatId: "-446" } });
+      const disabled = await db.notificationChannel.create({ data: { name: "Disabled", chatId: "-447", enabled: false, eventTypes: ["marstek.grid_lost", "marstek.device_offline"] } });
+      const event = await publishEvent({ source: "marstek", type: "marstek.grid_lost", severity: "critical", title: "Historical record", telegram: false, userIds: [] });
+      const pending = await db.notification.create({ data: { eventId: event.id, recipientKey: `channel:${only.id}`, channelId: only.id } });
+      const processing = await db.notification.create({ data: { eventId: event.id, recipientKey: `channel:${mixed.id}`, channelId: mixed.id, status: "processing", leaseUntil: new Date(Date.now() + 120000), attemptCount: 1 } });
+      const attempt = await db.notificationDelivery.create({ data: { notificationId: processing.id, attempt: 1, destination: mixed.chatId, status: "processing" } });
+      const sent = await db.notification.create({ data: { eventId: event.id, recipientKey: `channel:${all.id}`, channelId: all.id, status: "sent" } });
+      const valid = await publishEvent({ source: "freelancehunt", type: "freelancehunt.project_created", severity: "info", title: "Supported project", telegram: false, userIds: [] });
+      const validPending = await db.notification.create({ data: { eventId: valid.id, recipientKey: `channel:${mixed.id}`, channelId: mixed.id } });
+      await db.eventState.create({ data: { key: "grid:test-battery", value: "offline" } });
+      const sql = await readFile(new URL("../prisma/migrations/20261024023000_remove_unimplemented_grid_events/migration.sql", import.meta.url), "utf8");
+      const connection = new Client({ connectionString: testUrl });
+      await connection.connect();
+      try { await connection.query(sql); await connection.query(sql); } finally { await connection.end(); }
+      assert.deepEqual((await db.notificationChannel.findUniqueOrThrow({ where: { id: only.id } })).eventTypes, []);
+      assert.equal((await db.notificationChannel.findUniqueOrThrow({ where: { id: only.id } })).enabled, false);
+      const updated = await db.notificationChannel.findUniqueOrThrow({ where: { id: mixed.id } });
+      assert.deepEqual(updated.eventTypes, ["freelancehunt.project_created"]); assert.equal(updated.enabled, true);
+      assert.equal((await db.notificationChannel.findUniqueOrThrow({ where: { id: all.id } })).enabled, true);
+      assert.equal((await db.notificationChannel.findUniqueOrThrow({ where: { id: disabled.id } })).enabled, false);
+      for (const id of [pending.id, processing.id]) assert.equal((await db.notification.findUniqueOrThrow({ where: { id } })).status, "cancelled");
+      assert.equal((await db.notificationDelivery.findUniqueOrThrow({ where: { id: attempt.id } })).status, "cancelled");
+      assert.equal((await db.notification.findUniqueOrThrow({ where: { id: sent.id } })).status, "sent");
+      assert.equal((await db.notification.findUniqueOrThrow({ where: { id: validPending.id } })).status, "pending");
+      assert.equal((await db.event.findUniqueOrThrow({ where: { id: event.id } })).title, "Historical record");
+      assert.equal(await db.eventState.findUnique({ where: { key: "grid:test-battery" } }), null);
     });
   } finally { await disconnectDatabase(); }
 });

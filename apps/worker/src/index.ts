@@ -19,6 +19,14 @@ let notificationPromise: Promise<void> | undefined;
 let maintenanceTimer: ReturnType<typeof setTimeout> | undefined;
 let maintenancePromise: Promise<void> | undefined;
 let lastDigestCheck = 0;
+let digestPromise: Promise<void> | undefined;
+
+function runDailyDigests(): Promise<void> {
+  if (stopping) return Promise.resolve();
+  return digestPromise ??= publishDailyDigests()
+    .catch(() => console.error("daily_digest_failed", { code: "database_failure" }))
+    .finally(() => { digestPromise = undefined; });
+}
 
 function scheduleMaintenance(): void {
   if (stopping) return;
@@ -26,7 +34,7 @@ function scheduleMaintenance(): void {
     maintenancePromise = (async () => {
       await recordHealth("worker", true);
       await backfillMarstekMinutes();
-      if (Date.now() - lastDigestCheck > 15 * 60000) { await publishDailyDigests(); lastDigestCheck = Date.now(); }
+      if (Date.now() - lastDigestCheck > 15 * 60000) { await runDailyDigests(); lastDigestCheck = Date.now(); }
     })().catch(() => console.error("maintenance_failed", { code: "database_failure" })).finally(scheduleMaintenance);
   }, 5000);
 }
@@ -109,6 +117,7 @@ async function main(): Promise<void> {
   const retentionTask = cron.schedule("17 3 * * *", () => {
     if (!pruning) pruningPromise = pruneOldMeasurements();
   }, { timezone: "UTC" });
+  const digestTask = cron.schedule("0 9 * * *", () => runDailyDigests(), { timezone: "Europe/Kyiv" });
   for (const device of devices) schedulePolling(device);
   scheduleFreelancehuntPolling();
   scheduleNotifications();
@@ -123,8 +132,9 @@ async function main(): Promise<void> {
       if (notificationTimer) clearTimeout(notificationTimer);
       if (maintenanceTimer) clearTimeout(maintenanceTimer);
       retentionTask.stop();
+      digestTask.stop();
       console.info("worker_stopping", { signal });
-      await Promise.allSettled([...pollingPromises.values(), pruningPromise, freelancehuntPromise, notificationPromise, maintenancePromise]);
+      await Promise.allSettled([...pollingPromises.values(), pruningPromise, freelancehuntPromise, notificationPromise, maintenancePromise, digestPromise]);
       await disconnectDatabase();
       process.exit(0);
     });

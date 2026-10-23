@@ -25,3 +25,9 @@ test("channel quiet-hour and type/device rules remain bounded", () => {
   assert.equal(parseChannel(channel).digest,true);
   for (const update of [{ quietFrom:"25:00" }, { quietTo:"" }, { deviceIds:["bad id"] }, { eventTypes:["Bad"] }]) assert.throws(()=>parseChannel({ ...channel, ...update }));
 });
+
+test("channel filters reject unimplemented event types rather than accepting silent rules", () => {
+  const channel = { name: "Home", chatId: "-100123", enabled: true, minSeverity: "info", sources: [] };
+  for (const type of ["marstek.grid_lost", "marstek.grid_restored", "custom.unimplemented"]) assert.throws(() => parseChannel({ ...channel, eventTypes: [type] }));
+  assert.deepEqual(parseChannel({ ...channel, eventTypes: ["freelancehunt.project_created", "marstek.device_offline"] }).eventTypes, ["freelancehunt.project_created", "marstek.device_offline"]);
+});

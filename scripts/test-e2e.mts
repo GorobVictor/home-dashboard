@@ -53,20 +53,55 @@ try {
   await page.getByRole("heading", { name: "Температура батареї", exact: true }).waitFor();
   const chart = page.locator(".recharts-wrapper").first();
   const dot = chart.locator(".recharts-area-dot").last(); await dot.waitFor();
-  await dot.scrollIntoViewIfNeeded();
-  const box = await dot.boundingBox(); assert.ok(box);
-  await page.mouse.move(box.x + box.width/2, box.y + box.height/2);
+  // Hover retries if the initial live refresh replaces the chart's SVG nodes.
+  await dot.hover({ force: true });
   const tooltip = page.locator(".recharts-tooltip-wrapper").first(); await tooltip.waitFor({ state: "visible" });
   assert.ok(!(await tooltip.innerText()).includes("Invalid Date")); assert.match(await tooltip.innerText(), /\d{4}/);
   await mkdir("test-results", { recursive: true }); await page.screenshot({ path: "test-results/energy-desktop.png", fullPage: true });
   assert.equal((await context.request.get(`${base}/api/marstek/export?device=${device.id}&range=24`)).status(),200);
   assert.equal((await context.request.post(`${base}/api/notifications/read`, { headers: { origin: "https://untrusted.example" }, data: { all: true } })).status(),403);
 
+  await page.goto(`${base}/settings/notifications`);
+  const channelForm = page.locator("form").filter({ has: page.getByRole("heading", { name: "Додати Telegram-канал", exact: true }) });
+  await channelForm.waitFor({ state: "visible" });
+  assert.equal(await channelForm.getByRole("checkbox", { name: /Електромережу/ }).count(), 0);
+  assert.equal(await channelForm.getByRole("checkbox", { name: "Новий проєкт", exact: true }).count(), 1);
+  assert.equal(await channelForm.getByRole("checkbox", { name: "Пристрій недоступний", exact: true }).count(), 1);
+  const digest = channelForm.getByRole("checkbox", { name: "Добовий підсумок", exact: true });
+  const digestHelp = channelForm.getByRole("button", { name: "Пояснення: Добовий підсумок", exact: true });
+  await digestHelp.hover();
+  await page.getByRole("tooltip").waitFor({ state: "visible" });
+  assert.match(await page.getByRole("tooltip").innerText(), /Окремі події продовжують надходити/);
+  assert.equal(await digest.isChecked(), false);
+  await page.keyboard.press("Escape");
+  await page.getByRole("tooltip").waitFor({ state: "hidden" });
+  await digestHelp.focus(); await digestHelp.press("Enter");
+  await page.getByRole("tooltip").waitFor({ state: "visible" });
+  await page.keyboard.press("Escape");
+  await channelForm.getByLabel("Назва каналу", { exact: true }).fill("Тестовий канал із підсумком");
+  await channelForm.getByLabel("ID чату", { exact: true }).fill("-12345");
+  await digest.check();
+  await channelForm.getByRole("button", { name: "Зберегти", exact: true }).click();
+  await page.getByRole("heading", { name: "Тестовий канал із підсумком", exact: true }).waitFor();
+  assert.equal((await db.notificationChannel.findFirstOrThrow({ where: { chatId: "-12345" } })).digest, true);
+  // A touch help trigger must neither toggle the option nor submit the form.
+  const mobile = await launched.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, storageState: await context.storageState() });
+  const mobilePage = await mobile.newPage(); mobilePage.on("pageerror", error => errors.push(error.message));
+  await mobilePage.goto(`${base}/settings/notifications`);
+  const savedChannel = mobilePage.locator("form").filter({ has: mobilePage.getByRole("heading", { name: "Тестовий канал із підсумком", exact: true }) });
+  await savedChannel.getByRole("button", { name: "Пояснення: Добовий підсумок", exact: true }).tap();
+  await mobilePage.getByRole("tooltip").waitFor({ state: "visible" });
+  assert.equal(await savedChannel.getByRole("checkbox", { name: "Добовий підсумок", exact: true }).isChecked(), true);
+  const helpBox = await mobilePage.getByRole("tooltip").boundingBox(); assert.ok(helpBox && helpBox.x >= 0 && helpBox.x + helpBox.width <= 391);
+  assert.ok(await mobilePage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  await mobilePage.screenshot({ path: "test-results/notification-help-mobile.png", fullPage: true });
+  await mobile.close();
+
   await page.goto(`${base}/dashboard?tab=freelancehunt&project=123`);
   const dialog = page.getByRole("dialog"); await dialog.waitFor();
-  await dialog.getByLabel("Особиста нотатка").fill("Збережена браузерна нотатка");
+  await dialog.getByRole("textbox", { name: "Особиста нотатка", exact: true }).fill("Збережена браузерна нотатка");
   await dialog.getByRole("button", { name: "Зберегти нотатку", exact: true }).click(); await dialog.getByText("Нотатку збережено.", { exact: true }).waitFor();
-  await dialog.getByLabel("Робочий статус").selectOption("applied");
+  await dialog.getByRole("combobox", { name: "Робочий статус", exact: true }).selectOption("applied");
   await page.waitForTimeout(600);
   const state = await db.freelancehuntProjectState.findFirstOrThrow({ where: { userId: user.id } });
   assert.equal(state.workflow,"applied"); assert.ok(state.viewedAt);
@@ -95,7 +130,7 @@ try {
   await page.evaluate(() => window.dispatchEvent(new Event("marstek.measurement.saved")));
   await page.getByText("Пристрій недоступний", { exact: true }).waitFor({ timeout:15000 });
   assert.deepEqual(errors,[]);
-  console.info("Browser: login, temperature/tooltip, CSV, CSRF, notes/workflow, inbox pagination, sites, mobile, NOTIFY, socket expiry and stale telemetry passed.");
+  console.info("Browser: login, temperature/tooltip, CSV, CSRF, additional digest settings, hover/keyboard/touch help, notes/workflow, inbox pagination, sites, mobile, NOTIFY, socket expiry and stale telemetry passed.");
 } finally {
   await browser?.close();
   if (server) { server.kill("SIGTERM"); await new Promise(resolve=>{ if(server!.exitCode!==null) resolve(null); else { server!.once("exit",resolve); setTimeout(()=>{server!.kill("SIGKILL");resolve(null);},5000).unref(); } }); }

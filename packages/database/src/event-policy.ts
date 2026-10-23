@@ -1,6 +1,16 @@
 export const severities = ["info", "warning", "error", "critical"] as const;
 export type Severity = typeof severities[number];
 
+// Only events with active producers may be selected in channel filters.
+// Tests and daily digests use their dedicated delivery controls instead.
+export const notificationEventTypes = [
+  "marstek.battery_low", "marstek.battery_recovered", "marstek.fully_charged",
+  "marstek.device_offline", "marstek.device_online",
+  "freelancehunt.project_created", "freelancehunt.message_received",
+  "system.service_unavailable", "system.service_restored",
+] as const;
+export type NotificationEventType = typeof notificationEventTypes[number];
+
 export const marstekAvailabilityPolicy = {
   offlineAfterMs: 180_000,
   recoveryAfterMs: 30_000,

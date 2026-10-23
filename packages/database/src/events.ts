@@ -67,12 +67,6 @@ export async function observeEvent(key: string, value: string, input: EventInput
   return getDatabase().$transaction((tx) => observeEventInTransaction(tx, key, value, input, options));
 }
 
-// Call only with an explicit, validated grid signal. Current Venus E3 RPCs do not supply one.
-export async function observeMarstekGrid(deviceId: string, available: boolean | null) {
-  if (available === null) return;
-  return observeEvent(`grid:${deviceId}`, available ? "online" : "offline", { source: "marstek", type: available ? "marstek.grid_restored" : "marstek.grid_lost", severity: available ? "info" : "critical", title: `Marstek ${deviceId}: ${available ? "електромережу відновлено" : "електромережу втрачено"}`, payload: { deviceId } });
-}
-
 export async function observeEventInTransaction(tx: EventTransaction, key: string, value: string, input: EventInput | null, options: { cooldownMs?: number; emitInitial?: boolean } = {}) {
   await lockEventKey(tx, key);
   const previous = await tx.eventState.findUnique({ where: { key } });

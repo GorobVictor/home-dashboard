@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { severities, type ChannelInput, type EventFilters, type Severity } from "@home-dashboard/database";
+import { severities, notificationEventTypes, type NotificationEventType, type ChannelInput, type EventFilters, type Severity } from "@home-dashboard/database";
 import { currentUser } from "./auth/session";
 import { sameOrigin } from "./auth/http";
 import { readJson } from "./body";
@@ -37,6 +37,7 @@ export async function notificationBody(request: NextRequest, limit = 4096): Prom
 export function parseChannel(body: Record<string, unknown>): ChannelInput {
   if (Object.keys(body).some((key) => !["name", "chatId", "enabled", "minSeverity", "sources", "eventTypes", "deviceIds", "quietFrom", "quietTo", "digest"].includes(key)) || typeof body.name !== "string" || !body.name.trim() || body.name.length > 100 || typeof body.chatId !== "string" || !/^(-?\d{1,20}|@[a-zA-Z][a-zA-Z0-9_]{4,31})$/.test(body.chatId) || typeof body.enabled !== "boolean" || !severities.includes(body.minSeverity as Severity) || !Array.isArray(body.sources) || body.sources.length > 3 || body.sources.some((source) => !["marstek", "freelancehunt", "system"].includes(String(source)))) throw new NotificationInputError();
   for (const key of ["eventTypes", "deviceIds"] as const) if (key in body && (!Array.isArray(body[key]) || body[key].length > 32 || body[key].some((value: unknown) => typeof value !== "string" || !(key === "deviceIds" ? /^[a-z0-9][a-z0-9_-]{0,63}$/ : /^[a-z][a-z0-9_.-]{0,99}$/).test(value)))) throw new NotificationInputError();
+  if (Array.isArray(body.eventTypes) && body.eventTypes.some(value => !notificationEventTypes.includes(value as NotificationEventType))) throw new NotificationInputError();
   for (const key of ["quietFrom", "quietTo"] as const) if (key in body && (typeof body[key] !== "string" || !/^(?:[01]\d|2[0-3]):[0-5]\d$|^$/.test(body[key]))) throw new NotificationInputError();
   if (Boolean(body.quietFrom) !== Boolean(body.quietTo) || ("digest" in body && typeof body.digest !== "boolean")) throw new NotificationInputError();
   return { name: body.name.trim(), chatId: body.chatId, enabled: body.enabled, minSeverity: body.minSeverity as Severity, sources: [...new Set(body.sources as string[])], ...("eventTypes" in body ? { eventTypes: [...new Set(body.eventTypes as string[])] } : {}), ...("deviceIds" in body ? { deviceIds: [...new Set(body.deviceIds as string[])] } : {}), ...("quietFrom" in body ? { quietFrom: body.quietFrom as string, quietTo: body.quietTo as string } : {}), ...("digest" in body ? { digest: body.digest as boolean } : {}) };

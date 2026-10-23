@@ -6,8 +6,7 @@ export function channelMatches(channel: ChannelRules, event: { type: string; sou
   return acceptsSeverity(channel.minSeverity, event.severity)
     && (!Array.isArray(channel.sources) || !channel.sources.length || channel.sources.includes(event.source))
     && (!Array.isArray(channel.eventTypes) || !channel.eventTypes.length || channel.eventTypes.includes(event.type))
-    && (!Array.isArray(channel.deviceIds) || !channel.deviceIds.length || channel.deviceIds.includes(payload.deviceId))
-    && (!channel.digest || event.severity === "critical");
+    && (!Array.isArray(channel.deviceIds) || !channel.deviceIds.length || channel.deviceIds.includes(payload.deviceId));
 }
 const clock = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Kyiv", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 export function nextDeliveryAt(channel: Pick<ChannelRules, "quietFrom" | "quietTo">, now: Date, severity: Severity) {
