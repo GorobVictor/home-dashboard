@@ -5,6 +5,7 @@ import { useState } from "react";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { headerLogoutButtonClassName } from "@/lib/ui-layout";
+import { ActionTooltip } from "@/components/help-text";
 
 export function LogoutButton() {
   const router = useRouter();
@@ -30,9 +31,9 @@ export function LogoutButton() {
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <Button className={headerLogoutButtonClassName} variant="outline" onClick={logout} disabled={pending} aria-label={pending ? "Виходимо…" : "Вийти"}>
+      <ActionTooltip help="Завершити вхід у цьому браузері, включно з іншими відкритими вкладками дашборда."><Button className={headerLogoutButtonClassName} variant="outline" onClick={logout} disabled={pending} aria-label={pending ? "Виходимо…" : "Вийти"}>
         <LogOut aria-hidden="true" className="size-4 sm:hidden" /><span className="hidden sm:inline">{pending ? "Виходимо…" : "Вийти"}</span>
-      </Button>
+      </Button></ActionTooltip>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     </div>
   );

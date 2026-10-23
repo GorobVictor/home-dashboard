@@ -3,9 +3,10 @@ import Link from "next/link";
 import { BatteryFull, Activity } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { headerIconButtonClassName } from "@/lib/ui-layout";
+import { ActionTooltip } from "@/components/help-text";
 
 export function HeaderLink({ href, label, children }: { href: string; label: string; children: ReactNode }) {
-  return <Link href={href} aria-label={label} title={label} className={buttonVariants({ variant: "outline", size: "icon", className: headerIconButtonClassName })}>{children}</Link>;
+  return <ActionTooltip help={label === "Стан системи" ? "Перевірити роботу worker, свіжість даних батарей і стан Telegram-доставок." : `Відкрити розділ «${label}».`}><Link href={href} aria-label={label} className={buttonVariants({ variant: "outline", size: "icon", className: headerIconButtonClassName })}>{children}</Link></ActionTooltip>;
 }
 
 export function PageHeader({ title, mobileTitle = title, children }: { title: string; mobileTitle?: string; children: ReactNode }) {

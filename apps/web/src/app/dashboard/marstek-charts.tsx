@@ -1,5 +1,7 @@
 "use client";
 
+import { HelpText } from "@/components/help-text";
+
 import type { ReactNode } from "react";
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis,
@@ -57,7 +59,7 @@ export function MarstekCharts({ points, energy, hours, period, rangeStart, range
     <div className="grid min-w-0 gap-3 sm:gap-4 xl:grid-cols-2">
       <section className="min-w-0 rounded-2xl border bg-card p-3 sm:p-6" aria-label="Історія заряду батареї">
         <div className="mb-3 sm:mb-4">
-          <h3 className="text-sm font-medium">Рівень заряду</h3>
+          <h3 aria-label="Рівень заряду" className="text-sm font-medium"><HelpText>Рівень заряду</HelpText></h3>
           <p className="mt-1 text-xs text-muted-foreground">Зміна заряду в часі</p>
         </div>
         <ChartFrame available={points.filter(point => point.soc !== null).length >= 2} className="h-44 sm:h-60">
@@ -75,7 +77,7 @@ export function MarstekCharts({ points, energy, hours, period, rangeStart, range
       </section>
       <section className="min-w-0 rounded-2xl border bg-card p-3 sm:p-6" aria-label="Історія потужності батареї">
         <div className="mb-3 sm:mb-4">
-          <h3 className="text-sm font-medium">Потужність у часі</h3>
+          <h3 aria-label="Потужність у часі" className="text-sm font-medium"><HelpText>Потужність у часі</HelpText></h3>
           <p className="mt-1 text-xs text-muted-foreground">Заряд, розряд і сонячна потужність · W</p>
         </div>
         <ChartFrame available={hasReadings} className="h-48 sm:h-60">
@@ -94,7 +96,7 @@ export function MarstekCharts({ points, energy, hours, period, rangeStart, range
         </ChartFrame>
       </section>
       <section className="min-w-0 rounded-2xl border bg-card p-3 sm:p-6 xl:col-span-2" aria-label="Температура батареї">
-        <h3 className="text-sm font-medium">Температура батареї</h3><p className="mt-1 mb-4 text-xs text-muted-foreground">°C · Київ · пропуски даних залишаються розривами</p>
+        <h3 aria-label="Температура батареї" className="text-sm font-medium"><HelpText>Температура батареї</HelpText></h3><p className="mt-1 mb-4 text-xs text-muted-foreground">°C · Київ · пропуски даних залишаються розривами</p>
         <ChartFrame available={points.filter(point => point.temperature !== null).length >= 2} className="h-48 sm:h-60">
           <ChartContainer config={{ temperature: { label: "Температура", color: "var(--chart-3)" } }} className="h-full w-full aspect-auto" role="img" aria-label="Температура батареї за вибраний період">
             <AreaChart data={readings} margin={{ left: -12, right: 8 }}><CartesianGrid vertical={false} strokeDasharray="3 3" /><XAxis {...timeAxis} /><YAxis tickFormatter={value => `${value}°`} domain={["auto", "auto"]} tickLine={false} axisLine={false} />
@@ -106,7 +108,7 @@ export function MarstekCharts({ points, energy, hours, period, rangeStart, range
       </section>
       <section className="min-w-0 rounded-2xl border bg-card p-3 sm:p-6 xl:col-span-2" aria-label="Заряджена й віддана енергія">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3 sm:mb-6 sm:gap-5">
-          <div><h3 className="text-sm font-medium">Передана енергія</h3><p className="mt-1 text-xs text-muted-foreground">Оцінено з потужності · Wh за {hours <= 24 ? "годину" : "день"}</p></div>
+          <div><h3 aria-label="Передана енергія" className="text-sm font-medium"><HelpText>Передана енергія</HelpText></h3><p className="mt-1 text-xs text-muted-foreground">Оцінено з потужності · Wh за {hours <= 24 ? "годину" : "день"}</p></div>
           <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto sm:gap-10">
             <div><p className="energy-eyebrow">Заряджено за період</p><p className="mt-1 whitespace-nowrap text-xl font-semibold tabular-nums text-emerald-300">{hasEnergy ? period.chargeWh.toLocaleString("uk-UA") : "—"} <span className="text-xs font-normal">Wh</span></p></div>
             <div><p className="energy-eyebrow">Віддано за період</p><p className="mt-1 whitespace-nowrap text-xl font-semibold tabular-nums text-sky-300">{hasEnergy ? period.dischargeWh.toLocaleString("uk-UA") : "—"} <span className="text-xs font-normal">Wh</span></p></div>

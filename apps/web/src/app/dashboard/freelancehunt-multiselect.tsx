@@ -1,5 +1,6 @@
 "use client";
 
+import { HelpText } from "@/components/help-text";
 import { useId, useState } from "react";
 import { ChevronDown, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,7 +39,7 @@ export function FreelancehuntMultiselect({ name, label, placeholder, options, de
     setSelected((current) => current.includes(value) ? current.filter((item) => item !== value) : current.length < limit ? [...current, value] : current);
   }
   return <div className="col-span-2 flex min-w-0 flex-col gap-2">
-    <p id={labelId} className="text-sm font-medium">{label}</p>
+    <div className="text-sm font-medium"><span id={labelId} className="sr-only">{label}</span><HelpText>{label}</HelpText></div>
     {selected.map((value) => <input key={value} type="hidden" name={name} value={value} />)}
     <Popover onOpenChange={(open) => { if (!open) { setQuery(""); setOnlySelected(false); } }}>
       <PopoverTrigger disabled={disabled} aria-labelledby={`${labelId} ${labelId}-selection`} render={<Button type="button" variant="outline" className="h-10 w-full justify-between gap-3 px-3 font-normal" />}>

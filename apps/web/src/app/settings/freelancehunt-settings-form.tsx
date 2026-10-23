@@ -1,5 +1,7 @@
 "use client";
 
+import { HelpText } from "@/components/help-text";
+
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Bell, BriefcaseBusiness, Clock3, LoaderCircle, MessageSquare, Radio, Save, Search, Send, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
@@ -84,7 +86,7 @@ export function FreelancehuntSettingsForm({ settings }: { settings: Settings }) 
           <Setting label="Відповідні проєкти" description="Знаходити нові проєкти за вибраними навичками." icon={<BriefcaseBusiness className="size-4" />} checked={value.projectPollingEnabled} onCheckedChange={toggle("projectPollingEnabled")} />
           <Setting label="Непрочитані повідомлення" description="Перевіряти нові повідомлення у ваших розмовах." icon={<MessageSquare className="size-4" />} checked={value.messagePollingEnabled} onCheckedChange={toggle("messagePollingEnabled")} />
           <div className="mt-3 border-t border-border/70 pt-3 sm:mt-5 sm:pt-5">
-            <label htmlFor="poll-interval" className="flex items-center gap-2 text-sm font-medium"><Clock3 aria-hidden="true" className="size-4 text-muted-foreground" />Перевіряти кожні</label>
+            <label htmlFor="poll-interval" className="flex items-center gap-2 text-sm font-medium"><Clock3 aria-hidden="true" className="size-4 text-muted-foreground" /><HelpText>Перевіряти кожні</HelpText></label>
             <div className="mt-3 flex items-center gap-3"><Input id="poll-interval" aria-describedby="poll-interval-help" className="h-10 w-28 rounded-xl px-3" type="number" min={10} max={3600} value={value.pollIntervalSeconds} onChange={(event) => setValue((current) => ({ ...current, pollIntervalSeconds: Number(event.target.value) }))} /><span className="text-sm text-muted-foreground">секунд</span></div>
             <p id="poll-interval-help" className="mt-2 text-xs leading-5 text-muted-foreground">10–3600 секунд. Рекомендовано 60 секунд для ощадного використання API.</p>
           </div>
@@ -96,7 +98,7 @@ export function FreelancehuntSettingsForm({ settings }: { settings: Settings }) 
       </Card>
     </div>
     <Card className="min-w-0 rounded-2xl gap-3 py-3 [--card-spacing:--spacing(3)] sm:gap-6 sm:py-6 sm:[--card-spacing:--spacing(6)]">
-      <CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><SlidersHorizontal aria-hidden="true" className="size-4 text-muted-foreground" /><h3 className="text-lg font-semibold">Навички проєктів</h3></div><span className="rounded-full border border-emerald-400/15 bg-emerald-400/10 px-2.5 py-1 text-xs tabular-nums text-emerald-300">{selectedSkills.size} вибрано</span></div><CardDescription className="mt-1">Оберіть навички для пошуку відповідних проєктів.</CardDescription></CardHeader>
+      <CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><SlidersHorizontal aria-hidden="true" className="size-4 text-muted-foreground" /><h3 aria-label="Навички проєктів" className="text-lg font-semibold"><HelpText>Навички проєктів</HelpText></h3></div><span className="rounded-full border border-emerald-400/15 bg-emerald-400/10 px-2.5 py-1 text-xs tabular-nums text-emerald-300">{selectedSkills.size} вибрано</span></div><CardDescription className="mt-1">Оберіть навички для пошуку відповідних проєктів.</CardDescription></CardHeader>
       <CardContent className="space-y-4">
         <div className="relative"><label htmlFor="skill-search" className="sr-only">Пошук навичок</label><Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input id="skill-search" className="h-10 rounded-xl pl-10 pr-3" value={skillQuery} onChange={(event) => setSkillQuery(event.target.value)} placeholder="Шукати навички…" /></div>
         <div className="h-[min(24rem,55dvh)] sm:h-[36rem]">{skillsError ? <p role="alert" className="rounded-xl border border-destructive/25 bg-destructive/10 p-4 text-sm leading-6 text-destructive">{skillsError}</p> : skillsLoading ? <LoadingState label="Завантажуємо навички" className="h-full overflow-hidden rounded-xl border bg-background/30 p-3"><OptionListSkeleton rows={10} compact /></LoadingState> : <div className="h-full space-y-3 overflow-y-auto overscroll-contain rounded-xl border bg-background/30 p-3 [scrollbar-color:var(--muted)_transparent]">
@@ -114,5 +116,5 @@ export function FreelancehuntSettingsForm({ settings }: { settings: Settings }) 
 }
 
 function Setting({ label, description, icon, checked, onCheckedChange, prominent = false }: { label: string; description: string; icon: ReactNode; checked: boolean; onCheckedChange: (checked: boolean) => void; prominent?: boolean }) {
-  return <label className={`flex cursor-pointer items-start justify-between gap-3 rounded-xl border p-2.5 transition-colors sm:p-3.5 ${prominent && checked ? "border-emerald-400/20 bg-emerald-400/[0.07]" : "border-border/70 bg-foreground/[0.02] hover:bg-foreground/[0.04]"}`}><span className="flex min-w-0 items-start gap-2.5"><span aria-hidden="true" className={`mt-0.5 shrink-0 ${prominent && checked ? "text-emerald-300" : "text-muted-foreground"}`}>{icon}</span><span><span className="block text-sm font-medium">{label}</span><span className="mt-1 block text-xs leading-4 sm:leading-5 text-muted-foreground">{description}</span></span></span><Switch aria-label={label} className="mt-0.5 data-checked:bg-emerald-400" checked={checked} onCheckedChange={onCheckedChange} /></label>;
+  return <label className={`flex cursor-pointer items-start justify-between gap-3 rounded-xl border p-2.5 transition-colors sm:p-3.5 ${prominent && checked ? "border-emerald-400/20 bg-emerald-400/[0.07]" : "border-border/70 bg-foreground/[0.02] hover:bg-foreground/[0.04]"}`}><span className="flex min-w-0 items-start gap-2.5"><span aria-hidden="true" className={`mt-0.5 shrink-0 ${prominent && checked ? "text-emerald-300" : "text-muted-foreground"}`}>{icon}</span><span><span className="block text-sm font-medium"><HelpText>{label}</HelpText></span><span className="mt-1 block text-xs leading-4 sm:leading-5 text-muted-foreground">{description}</span></span></span><Switch aria-label={label} className="mt-0.5 data-checked:bg-emerald-400" checked={checked} onCheckedChange={onCheckedChange} /></label>;
 }

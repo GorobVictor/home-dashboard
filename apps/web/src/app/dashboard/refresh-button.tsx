@@ -4,6 +4,7 @@ import { useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ActionTooltip } from "@/components/help-text";
 
 export function RefreshButton() {
   const router = useRouter();
@@ -13,9 +14,9 @@ export function RefreshButton() {
     return () => clearInterval(interval);
   }, [router]);
   return (
-    <Button variant="outline" size="sm" onClick={() => startTransition(() => router.refresh())} disabled={pending}>
+    <ActionTooltip help="Завантажити актуальні дані цього розділу. Це не запускає позачергове опитування Freelancehunt чи батареї."><Button variant="outline" size="sm" onClick={() => startTransition(() => router.refresh())} disabled={pending}>
       <RefreshCw className={pending ? "motion-safe:animate-spin" : ""} aria-hidden="true" />
       Оновити
-    </Button>
+    </Button></ActionTooltip>
   );
 }

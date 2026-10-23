@@ -1,5 +1,7 @@
 "use client";
 
+import { HelpText } from "@/components/help-text";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/dates";
@@ -66,7 +68,7 @@ export function EnergyDashboard({ dashboard: initial, rangeQuery }: { dashboard:
 
     <EnergyOverview battery={<BatteryOverview device={device} latest={selected.latest} />} flow={<PowerFlow device={device} latest={selected.latest} />} />
     <section className="rounded-xl border bg-card p-4 text-sm space-y-2" aria-label="Оцінка автономності">
-      <label className="flex flex-wrap items-center gap-3">Резерв заряду, % <input aria-label="Резерв заряду" type="number" min={0} max={95} value={reserve} onChange={event => setReserve(Math.min(95, Math.max(0, Number(event.target.value))))} className="w-20 rounded border bg-background p-2" /></label>
+      <label className="flex flex-wrap items-center gap-3"><HelpText>Резерв заряду, %</HelpText> <input aria-label="Резерв заряду" type="number" min={0} max={95} value={reserve} onChange={event => setReserve(Math.min(95, Math.max(0, Number(event.target.value))))} className="w-20 rounded border bg-background p-2" /></label>
       <p>До резерву за середнім навантаженням за 5 хв: {selected.online && selected.latest?.remainingCapacityWh != null && device.socPercent != null && device.socPercent > reserve && initial.averageDischargeW != null && initial.averageDischargeW > 0.5 ? `${Math.min(525600, Math.round(selected.latest.remainingCapacityWh * (1 - reserve / device.socPercent) / initial.averageDischargeW * 60)).toLocaleString("uk-UA")} хв` : "—"}</p>
       <p className="text-xs text-muted-foreground">Оцінка за незмінного навантаження. Основний індикатор показує час до повного розряду за поточною потужністю.</p>
     </section>
@@ -123,7 +125,7 @@ function BatteryOverview({ device, latest }: { device: Device; latest: Latest })
       </div>
       <div className="grid min-w-0 gap-2 sm:grid-cols-2 sm:gap-3">
         <div className="@container min-w-0 rounded-xl bg-foreground/[0.04] px-3 py-2 sm:p-4">
-          <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Clock3 aria-hidden="true" className="size-3.5 shrink-0" />Час до розряду</p>
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Clock3 aria-hidden="true" className="size-3.5 shrink-0" /><HelpText>Час до розряду</HelpText></p>
           <p className="mt-1 flex h-6 items-baseline gap-1 whitespace-nowrap text-[clamp(0.875rem,11cqi,1.25rem)] font-semibold tabular-nums sm:mt-2 sm:h-7 sm:gap-2" aria-label={duration} title={duration}>
             {estimate == null ? <span className="text-xl">—</span> : <>
               <DurationPart value={Math.floor(estimate / 1440)} unit="д" /><DurationPart value={Math.floor(estimate % 1440 / 60)} unit="г" /><DurationPart value={estimate % 60} unit="хв" />
@@ -132,7 +134,7 @@ function BatteryOverview({ device, latest }: { device: Device; latest: Latest })
           <p className="mt-1 hidden text-[11px] leading-4 text-muted-foreground sm:block">За поточного навантаження</p>
         </div>
         <div className="@container min-w-0 rounded-xl bg-foreground/[0.04] px-3 py-2 sm:p-4">
-          <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><BatteryCharging aria-hidden="true" className="size-3.5 shrink-0" />Запас енергії</p>
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><BatteryCharging aria-hidden="true" className="size-3.5 shrink-0" /><HelpText>Запас енергії</HelpText></p>
           <p className="mt-1 flex h-6 items-baseline whitespace-nowrap text-[clamp(0.875rem,11cqi,1.25rem)] font-semibold tabular-nums sm:mt-2 sm:h-7"><FadeValue value={wattHours(latest?.remainingCapacityWh)} /></p>
           <p className="mt-1 text-[11px] leading-4 text-muted-foreground">із {wattHours(latest?.ratedCapacityWh)} місткості</p>
         </div>
@@ -150,8 +152,8 @@ function EnergyAnalytics({ dashboard, rangeQuery }: { dashboard: Dashboard; rang
   const query = new URLSearchParams(rangeQuery); if (dashboard.selectedDeviceId) query.set("device", dashboard.selectedDeviceId);
   return <section className="space-y-3 rounded-xl border bg-card p-4 text-sm" aria-label="Аналітика енергії">
     <h3 className="font-semibold">Аналітика періоду</h3>
-    <div className="grid gap-3 sm:grid-cols-3"><p>Повнота даних: <strong>{analytics.coveragePercent.toFixed(1)}%</strong></p><p>Пік заряду: {watts(analytics.chargePeak)}</p><p>Пік розряду: {watts(analytics.dischargePeak)}</p></div>
-    <p>Попередній {previousPeriod.completeRange ? "аналогічний" : "доступний"} період: {previousPeriod.available ? `${wattHours(previousPeriod.chargeWh)} заряджено / ${wattHours(previousPeriod.dischargeWh)} віддано` : "немає даних"}. Поточний: {wattHours(dashboard.energy.some(bucket => bucket.chargeWh !== null) ? period.chargeWh : null)} / {wattHours(dashboard.energy.some(bucket => bucket.dischargeWh !== null) ? period.dischargeWh : null)}.</p>
+    <div className="grid gap-3 sm:grid-cols-3"><p><HelpText>Повнота даних</HelpText>: <strong>{analytics.coveragePercent.toFixed(1)}%</strong></p><p><HelpText>Пік заряду</HelpText>: {watts(analytics.chargePeak)}</p><p><HelpText>Пік розряду</HelpText>: {watts(analytics.dischargePeak)}</p></div>
+    <p><HelpText>Попередній період</HelpText> · {previousPeriod.completeRange ? "аналогічний" : "доступний"} період: {previousPeriod.available ? `${wattHours(previousPeriod.chargeWh)} заряджено / ${wattHours(previousPeriod.dischargeWh)} віддано` : "немає даних"}. Поточний: {wattHours(dashboard.energy.some(bucket => bucket.chargeWh !== null) ? period.chargeWh : null)} / {wattHours(dashboard.energy.some(bucket => bucket.dischargeWh !== null) ? period.dischargeWh : null)}.</p>
     <details><summary className="cursor-pointer">За днями · Київ</summary><div className="mt-2 max-h-72 overflow-auto"><Table><TableHeader><TableRow><TableHead>День</TableHead><TableHead>Заряд, Wh</TableHead><TableHead>Розряд, Wh</TableHead></TableRow></TableHeader><TableBody>{analytics.days.map(day => <TableRow key={day.date}><TableCell>{day.date}</TableCell><TableCell>{day.known ? Math.round(day.chargeWh) : "—"}</TableCell><TableCell>{day.known ? Math.round(day.dischargeWh) : "—"}</TableCell></TableRow>)}</TableBody></Table></div></details>
     <a className="inline-flex min-h-11 items-center underline" href={`/api/marstek/export?${query}`}>Експорт телеметрії CSV</a>
   </section>;
@@ -169,7 +171,7 @@ function PowerFlow({ device, latest }: { device: Device; latest: Latest }) {
   const backupActive = live && (latest?.offgridPowerW ?? 0) > 0.5;
 
   return <Card className="min-w-0 gap-3 rounded-2xl [--card-spacing:--spacing(3)] sm:gap-6 sm:py-6 sm:[--card-spacing:--spacing(6)]">
-    <CardHeader><div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-semibold">Потоки енергії</h2><CardDescription className="mt-1">{live ? "Поточна потужність" : "Останні відомі показники"}</CardDescription></div><span className={`mt-1 inline-flex shrink-0 items-center gap-1.5 text-xs ${live ? "text-emerald-300" : "text-muted-foreground"}`}><span aria-hidden="true" className="size-1.5 rounded-full bg-current" />{live ? "Наживо" : "Недоступний"}</span></div></CardHeader>
+    <CardHeader><div className="flex items-start justify-between gap-3"><div><h2 aria-label="Потоки енергії" className="text-lg font-semibold"><HelpText>Потоки енергії</HelpText></h2><CardDescription className="mt-1">{live ? "Поточна потужність" : "Останні відомі показники"}</CardDescription></div><span className={`mt-1 inline-flex shrink-0 items-center gap-1.5 text-xs ${live ? "text-emerald-300" : "text-muted-foreground"}`}><span aria-hidden="true" className="size-1.5 rounded-full bg-current" />{live ? "Наживо" : "Недоступний"}</span></div></CardHeader>
     <CardContent className="flex flex-1 flex-col justify-between">
       <div className="energy-flow-map relative mx-auto grid w-full max-w-lg grid-cols-3 grid-rows-[72px_80px_72px] items-center justify-items-center sm:grid-rows-[100px_104px_100px]" aria-label="Поточні показники потужності">
         <svg className="pointer-events-none absolute inset-0 size-full" viewBox="0 0 600 304" preserveAspectRatio="none" aria-hidden="true">
@@ -194,7 +196,7 @@ function FlowNode({ label, value, icon, color, active, className }: { label: str
   return <div className={`relative z-10 flex w-full min-w-0 flex-col items-center bg-card py-2 ${className}`}>
     <div aria-hidden="true" className={`mb-1 flex size-7 items-center justify-center rounded-full border [&>svg]:size-4 sm:mb-1.5 sm:size-9 sm:[&>svg]:size-5 ${active ? `${color} border-current/30 bg-current/5` : "border-border text-muted-foreground"}`}>{icon}</div>
     <p className="whitespace-nowrap text-sm font-semibold tabular-nums sm:text-base"><FadeValue value={value} /></p>
-    <p className="mt-0.5 text-[11px] text-muted-foreground">{label}</p>
+    <p className="mt-0.5 text-[11px] text-muted-foreground"><HelpText>{label}</HelpText></p>
   </div>;
 }
 
@@ -202,6 +204,6 @@ function Telemetry({ latest }: { latest: Latest }) {
   const rows = [["Поточний розряд", watts(latest?.dischargePowerW)], ["Потужність мережі", watts(latest?.gridPowerW)], ["Сонячна потужність", watts(latest?.pvPowerW)], ["Резервний вихід", watts(latest?.offgridPowerW)], ["Потужність CT-лічильника", watts(latest?.meterPowerW)], ["Номінальна місткість", wattHours(latest?.ratedCapacityWh)], ["Отримано з мережі", wattHours(latest?.gridInputTotalWh)], ["Віддано в мережу", wattHours(latest?.gridOutputTotalWh)], ["Вироблено сонцем", wattHours(latest?.pvTotalWh)], ["Спожито навантаженням", wattHours(latest?.loadTotalWh)], ["CT-лічильник", latest?.ctConnected == null ? "—" : latest.ctConnected ? "Під’єднано" : "Від’єднано"], ["Заряджання дозволене", latest?.chargeAllowed == null ? "—" : latest.chargeAllowed ? "Так" : "Ні"], ["Розряджання дозволене", latest?.dischargeAllowed == null ? "—" : latest.dischargeAllowed ? "Так" : "Ні"], ["Джерело потужності", latest?.powerSource === "derived" ? "Розраховано" : latest?.powerSource === "reported" ? "Виміряно" : "Немає даних"]] as const;
   return <details className="group rounded-2xl border bg-card">
     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl p-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:p-5 [&::-webkit-details-marker]:hidden"><div><h2 className="text-sm font-medium">Телеметрія пристрою</h2><p className="mt-1 text-xs text-muted-foreground">Технічні показники та накопичена енергія</p></div><ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
-    <div className="border-t px-3 pb-3 sm:px-5 sm:pb-4"><Table><TableHeader><TableRow><TableHead>Показник</TableHead><TableHead className="text-right">Значення</TableHead></TableRow></TableHeader><TableBody>{rows.map(([label, value]) => <TableRow key={label}><TableCell>{label}</TableCell><TableCell className="text-right font-medium tabular-nums">{value}</TableCell></TableRow>)}</TableBody></Table></div>
+    <div className="border-t px-3 pb-3 sm:px-5 sm:pb-4"><Table><TableHeader><TableRow><TableHead>Показник</TableHead><TableHead className="text-right">Значення</TableHead></TableRow></TableHeader><TableBody>{rows.map(([label, value]) => <TableRow key={label}><TableCell><HelpText>{label}</HelpText></TableCell><TableCell className="text-right font-medium tabular-nums">{value}</TableCell></TableRow>)}</TableBody></Table></div>
   </details>;
 }
