@@ -1,0 +1,6 @@
+version: 1
+name: freelancehunt
+interceptRequests: true
+scenarios:
+  - name: default
+    path: default.cjs

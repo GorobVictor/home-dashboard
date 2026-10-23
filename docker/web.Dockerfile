@@ -7,9 +7,9 @@ COPY apps/web/package.json apps/web/package.json
 COPY apps/worker/package.json apps/worker/package.json
 COPY packages/database/package.json packages/database/package.json
 COPY packages/integrations/package.json packages/integrations/package.json
-RUN npm ci
+RUN npm ci && npm cache clean --force
 COPY . .
-RUN npm run db:generate && npm run build --workspace @home-dashboard/web
+RUN npm run db:generate && npm run build --workspace @home-dashboard/web && rm -rf apps/web/.next/cache
 
 FROM node:22-bookworm-slim
 
@@ -21,7 +21,7 @@ COPY apps/web/package.json apps/web/package.json
 COPY apps/worker/package.json apps/worker/package.json
 COPY packages/database/package.json packages/database/package.json
 COPY packages/integrations/package.json packages/integrations/package.json
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build --chown=node:node /app/apps/web ./apps/web
 COPY --from=build --chown=node:node /app/packages/database ./packages/database
 COPY --from=build --chown=node:node /app/packages/integrations ./packages/integrations

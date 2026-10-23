@@ -1,0 +1,5 @@
+simulation: freelancehunt-local
+routing: path
+mocks:
+  - routeKey: freelancehunt
+    path: ../mocks/freelancehunt/config.yaml

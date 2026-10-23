@@ -12,6 +12,8 @@
     "build": "npm run build --workspaces --if-present",
     "start": "npm run start --workspace @home-dashboard/web",
     "lint": "npm run lint --workspace @home-dashboard/web",
+    "test:integration": "node scripts/test-integration.mjs",
+    "test:e2e": "node --import tsx scripts/test-e2e.mts",
     "test": "TSX_TSCONFIG_PATH=apps/web/tsconfig.json node --import tsx --test apps/web/src/server/auth/*.test.ts apps/web/src/server/notifications.test.ts apps/web/src/server/marstek/*.test.ts packages/database/src/*.test.ts packages/integrations/src/*.test.ts apps/worker/src/jobs/*.test.ts",
     "typecheck": "npm run db:generate && npm run typecheck --workspaces --if-present",
     "db:generate": "prisma generate --config packages/database/prisma.config.ts",
