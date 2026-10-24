@@ -8,7 +8,9 @@ import type { TooltipValueType } from "recharts"
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const
 
-const INITIAL_DIMENSION = { width: 320, height: 200 } as const
+// The surrounding chart frame reserves height. Wait for the real width instead
+// of briefly rendering an SVG wider than a narrow phone card.
+const INITIAL_DIMENSION = { width: -1, height: -1 } as const
 type TooltipNameType = number | string
 
 export type ChartConfig = Record<

@@ -12,8 +12,8 @@ export function HelpText({ children, help }: { children: string; help?: string }
   const pressedOpen = useRef(false);
   const description = help ?? helpDescriptions[children];
   if (!description) return <>{children}</>;
-  return <span className="inline items-center gap-1 font-[inherit]">{children}{" "}<Tooltip open={open} onOpenChange={setOpen}>
-    <TooltipTrigger delay={200} closeOnClick={false} aria-label={`Пояснення: ${children}`} aria-describedby={open ? id : undefined} render={<span role="button" tabIndex={0} />} className="inline-flex size-6 cursor-help touch-manipulation items-center justify-center rounded-full align-middle text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+  return <span className="inline-flex max-w-full items-start gap-1.5 align-middle leading-6">{children}{" "}<Tooltip open={open} onOpenChange={setOpen}>
+    <TooltipTrigger delay={200} closeOnClick={false} aria-label={`Пояснення: ${children}`} aria-describedby={open ? id : undefined} render={<span role="button" tabIndex={0} />} className="inline-flex size-6 shrink-0 cursor-help touch-manipulation items-center justify-center rounded-full align-middle text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       onPointerDown={() => { pressedOpen.current = open; }}
       onClick={event => { event.preventDefault(); event.stopPropagation(); setOpen(!pressedOpen.current); }}
       onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); setOpen(true); } }}>
