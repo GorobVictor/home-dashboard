@@ -92,9 +92,13 @@ apps/
       api/auth/                       # login, logout, current-user endpoints
       api/freelancehunt/              # settings and skill catalogue routes
       api/marstek/                    # dashboard overview route
-      dashboard/                      # dashboard, charts, project dialog, live updates
+      (authenticated)/                # persistent header, authenticated page frame
+        dashboard/                    # dashboard, charts, project dialog, live updates
+        settings/                     # Freelancehunt settings page/form
+        events/                       # shared event log
+        notifications/                # personal inbox
+        status/                       # integration and worker health
       login/                          # login page/form
-      settings/                       # Freelancehunt settings page/form
     src/server/                       # server-only auth, input parsing, dashboard service
     src/server.ts                     # custom Next + WebSocket server
     scripts/create-user.ts            # initial-user CLI
@@ -123,8 +127,8 @@ AGENTS.md
 
 | Change needed | Start with |
 | --- | --- |
-| Dashboard layout/tabs/mobile UI | `apps/web/src/app/dashboard/page.tsx`, `energy-dashboard.tsx` and adjacent components |
-| Smooth number animation | `apps/web/src/app/dashboard/fade-value.tsx` |
+| Dashboard layout/tabs/mobile UI | `apps/web/src/app/(authenticated)/dashboard/page.tsx`, `energy-dashboard.tsx` and adjacent components |
+| Smooth number animation | `apps/web/src/app/(authenticated)/dashboard/fade-value.tsx` |
 | Dashboard data shape/chart sampling | `apps/web/src/server/marstek/dashboard.ts` |
 | API security/input validation | route handler plus `apps/web/src/server/auth/*` |
 | Settings UI and selected skills | `settings/freelancehunt-settings-form.tsx` |
@@ -184,6 +188,21 @@ Default to Server Components. Existing focused client components:
 - `fade-value.tsx`: vertical 200 ms numeric rollover; it cleans up timers/animation frames and avoids a full fade blink.
 
 Use the connected shadcn components in `apps/web/src/components/ui` (unused template primitives were removed), semantic controls, focus states, empty/error/loading states, Tailwind theme tokens, and responsive layouts. Narrow screens must retain usable tab navigation, forms, tables, and dialogs.
+
+Authenticated routes live in `apps/web/src/app/(authenticated)`. The persistent
+`(authenticated)/layout.tsx` owns PageHeader and the single main content frame.
+Use `app-container` and `page-content` for consistent width, gutters and spacing.
+Pages, loading states and errors must not add their own page shell or header.
+PageHeader always shows the same five actions and a separate, single greeting.
+The nested dashboard layout keeps the real tab links visible while data loads.
+Use the shared energy layout classes for both cards and their loading skeletons.
+The scrollbar gutter is stable to avoid horizontal jumps. Inputs,
+native selects, custom Select triggers and textareas share `controlClassName` from
+`lib/ui-layout.ts`; use `form-field` for field labels. Mobile field text is 16 px,
+and normal controls/header actions are 44 px high. Keep connection status in
+PageHeader instead of a separate row above it. Energy overview stacks on mobile;
+system status uses responsive cards. Keep loading layouts aligned with loaded pages.
+`docs/ui.md` describes the UI conventions and `npm run test:ui` viewport matrix.
 
 Login, dashboard and settings share the dark graphite palette through `dashboard-theme` on the root layout. The app uses a fixed dark theme; there is no theme switcher/provider. Shared colors live in `globals.css`; `dashboard-shell` adds the subtle background accent, including on login/settings. Keep portalled dialogs and toast notifications consistent with this theme.
 
